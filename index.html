@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>NEO-COP 3D: Districts & Business</title>
+<title>NEO-COP 3D: Enhanced City</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
 body { background: #050510; overflow: hidden; font-family: 'Courier New', monospace; color: #0ff; }
@@ -131,16 +131,14 @@ h2 { font-size: 24px; color: #f0f; margin-bottom: 40px; }
 
 <div id="startScreen" class="screen">
   <h1>NEO-COP 3D</h1>
-  <h2>DISTRICTS & BUSINESS</h2>
+  <h2>ENHANCED CITY</h2>
   <button class="btn" id="playBtn">НАЧАТЬ ИГРУ</button>
   <div class="controls">
     <b>WASD</b> — Движение / Езда | <b>E</b> — Машина<br>
     <b>F</b> — Действие / Войти / Закрыть меню<br>
     <b>ЛКМ / ПРОБЕЛ</b> — Стрельба | <b>SHIFT</b> — Бег<br>
     <b>1-4</b> — Смена оружия | <b>B</b> — Бизнесы<br><br>
-    <i style="color:#0ff">5 районов с разным уровнем опасности<br>
-    💼 Покупай бизнесы для пассивного дохода<br>
-     24 бандита разбросаны по городу</i>
+    <i style="color:#0ff">5 районов | 24 бандита | Бизнесы</i>
   </div>
 </div>
 
@@ -190,7 +188,7 @@ h2 { font-size: 24px; color: #f0f; margin-bottom: 40px; }
 
 <div id="businessMenu" class="hidden">
   <div class="business-content">
-    <h2> УПРАВЛЕНИЕ БИЗНЕСАМИ</h2>
+    <h2>💼 УПРАВЛЕНИЕ БИЗНЕСАМИ</h2>
     <div class="business-money">Ваши деньги: $<span id="businessMoneyVal">0</span></div>
     <div class="business-income">Текущий доход: $<span id="businessIncomeVal">0</span>/5сек</div>
     <div class="business-list" id="businessList"></div>
@@ -213,8 +211,8 @@ window.addEventListener('resize', resize);
 let state = 'menu';
 let keys = {};
 let mouse = { x: 0, y: 0 };
-// УВЕЛИЧЕННЫЙ МАСШТАБ — персонаж теперь хорошо виден
-let camera = { x: 0, y: 0, zoom: 1.0, targetZoom: 1.0 };
+// УМЕНЬШЕННЫЙ МАСШТАБ для обзора
+let camera = { x: 0, y: 0, zoom: 0.5, targetZoom: 0.5 };
 let score = 0, totalSmugglers = 24;
 let startTime = 0;
 let businessIncomeTimer = 0;
@@ -250,7 +248,6 @@ const BUSINESS_TYPES = {
 
 let ownedBusinesses = [];
 
-// УВЕЛИЧЕН РАЗМЕР ПЕРСОНАЖА
 let player = { 
     x: 1000, y: 1000, r: 18, 
     speed: 3.5, runSpeed: 6, 
@@ -284,6 +281,7 @@ let bullets = [];
 let particles = [];
 let floatingTexts = [];
 let roads = [];
+let intersections = []; // Перекрестки
 
 window.addEventListener('keydown', e => { 
     keys[e.code] = true; 
@@ -322,12 +320,13 @@ function getCurrentDistrict() {
 
 function generateCity() {
     buildings = []; prisons = []; shops = []; hospitals = []; businessBuildings = [];
-    roads = []; npcCars = [];
+    roads = []; npcCars = []; intersections = [];
     
-    const blockSize = 200;
-    const roadWidth = 60;
-    const sidewalkWidth = 15;
+    const blockSize = 300; // Увеличен размер блока для более правильной расстановки
+    const roadWidth = 80;
+    const sidewalkWidth = 20;
     
+    // Генерация дорог
     for (let x = 0; x < MAP_SIZE; x += blockSize) {
         roads.push({ x: x, y: 0, w: roadWidth, h: MAP_SIZE, vertical: true });
     }
@@ -335,67 +334,97 @@ function generateCity() {
         roads.push({ x: 0, y: y, w: MAP_SIZE, h: roadWidth, vertical: false });
     }
     
+    // Генерация перекрестков
+    for (let x = 0; x < MAP_SIZE; x += blockSize) {
+        for (let y = 0; y < MAP_SIZE; y += blockSize) {
+            intersections.push({
+                x: x, y: y, 
+                w: roadWidth, h: roadWidth,
+                hasTrafficLight: Math.random() > 0.5
+            });
+        }
+    }
+    
     let shopCount = 0, hospitalCount = 0, prisonCount = 0, businessCount = 0;
     
+    // Упорядоченная генерация зданий по кварталам
     for (let district of DISTRICTS) {
         for (let x = district.x; x < district.x + district.w; x += blockSize) {
             for (let y = district.y; y < district.y + district.h; y += blockSize) {
-                if (x < 350 && y < 350) continue;
-                if (Math.random() > 0.15) {
-                    let bW = blockSize - roadWidth - sidewalkWidth * 2 - 10;
-                    let bH = blockSize - roadWidth - sidewalkWidth * 2 - 10;
-                    let bX = x + roadWidth/2 + sidewalkWidth + 5;
-                    let bY = y + roadWidth/2 + sidewalkWidth + 5;
-                    
-                    let type = 'office';
-                    let hue = Math.random() * 60 + 240;
-                    let height = 40 + Math.random() * 60;
-                    
-                    let rand = Math.random();
-                    if (rand < 0.05 && shopCount < 8) {
-                        type = 'shop'; shopCount++; hue = 120; height = 50;
-                    } else if (rand < 0.08 && hospitalCount < 5) {
-                        type = 'hospital'; hospitalCount++; hue = 0; height = 70;
-                    } else if (rand < 0.1 && prisonCount < 4) {
-                        type = 'prison'; prisonCount++; hue = 0; height = 80;
-                    } else if (rand < 0.15 && businessCount < 12) {
-                        let bTypes = Object.keys(BUSINESS_TYPES);
-                        let bType = bTypes[Math.floor(Math.random() * bTypes.length)];
-                        type = 'business_' + bType;
-                        businessCount++;
-                        hue = BUSINESS_TYPES[bType].color === '#0f0' ? 120 : 
-                              BUSINESS_TYPES[bType].color === '#f0f' ? 300 :
-                              BUSINESS_TYPES[bType].color === '#ff0' ? 60 : 0;
-                        height = 60;
-                    } else if (rand > 0.5) {
-                        type = 'apartment';
-                        height = 60 + Math.random() * 40;
+                if (x < 400 && y < 400) continue;
+                
+                // Каждый блок = один квартал с 1-4 зданиями
+                let buildingsInBlock = 1 + Math.floor(Math.random() * 3);
+                let positions = [];
+                
+                // Размещение зданий в квартале
+                if (buildingsInBlock === 1) {
+                    positions.push({ x: x + roadWidth + 30, y: y + roadWidth + 30, w: blockSize - roadWidth - 60, h: blockSize - roadWidth - 60 });
+                } else if (buildingsInBlock === 2) {
+                    positions.push({ x: x + roadWidth + 20, y: y + roadWidth + 20, w: (blockSize - roadWidth - 40) / 2, h: blockSize - roadWidth - 40 });
+                    positions.push({ x: x + roadWidth + 20 + (blockSize - roadWidth - 40) / 2 + 20, y: y + roadWidth + 20, w: (blockSize - roadWidth - 40) / 2, h: blockSize - roadWidth - 40 });
+                } else {
+                    let halfW = (blockSize - roadWidth - 60) / 2;
+                    let halfH = (blockSize - roadWidth - 60) / 2;
+                    positions.push({ x: x + roadWidth + 20, y: y + roadWidth + 20, w: halfW, h: halfH });
+                    positions.push({ x: x + roadWidth + 20 + halfW + 20, y: y + roadWidth + 20, w: halfW, h: halfH });
+                    positions.push({ x: x + roadWidth + 20, y: y + roadWidth + 20 + halfH + 20, w: halfW, h: halfH });
+                    positions.push({ x: x + roadWidth + 20 + halfW + 20, y: y + roadWidth + 20 + halfH + 20, w: halfW, h: halfH });
+                }
+                
+                for (let pos of positions) {
+                    if (Math.random() > 0.1) {
+                        let type = 'office';
+                        let hue = Math.random() * 60 + 240;
+                        let height = 50 + Math.random() * 70;
+                        
+                        let rand = Math.random();
+                        if (rand < 0.04 && shopCount < 8) {
+                            type = 'shop'; shopCount++; hue = 120; height = 60;
+                        } else if (rand < 0.07 && hospitalCount < 5) {
+                            type = 'hospital'; hospitalCount++; hue = 0; height = 80;
+                        } else if (rand < 0.09 && prisonCount < 4) {
+                            type = 'prison'; prisonCount++; hue = 0; height = 90;
+                        } else if (rand < 0.14 && businessCount < 12) {
+                            let bTypes = Object.keys(BUSINESS_TYPES);
+                            let bType = bTypes[Math.floor(Math.random() * bTypes.length)];
+                            type = 'business_' + bType;
+                            businessCount++;
+                            hue = BUSINESS_TYPES[bType].color === '#0f0' ? 120 : 
+                                  BUSINESS_TYPES[bType].color === '#f0f' ? 300 :
+                                  BUSINESS_TYPES[bType].color === '#ff0' ? 60 : 0;
+                            height = 70;
+                        } else if (rand > 0.5) {
+                            type = 'apartment';
+                            height = 70 + Math.random() * 50;
+                        }
+                        
+                        let building = {
+                            x: pos.x, y: pos.y, w: pos.w, h: pos.h,
+                            color: `hsl(${hue}, 60%, 15%)`,
+                            neon: `hsl(${hue}, 100%, 50%)`,
+                            type: type,
+                            height: height,
+                            district: district.name,
+                            danger: district.danger,
+                            door: { x: pos.x + pos.w/2, y: pos.y + pos.h, w: 35, h: 12 }
+                        };
+                        
+                        if (type === 'prison') prisons.push(building);
+                        else if (type === 'shop') shops.push(building);
+                        else if (type === 'hospital') hospitals.push(building);
+                        else if (type.startsWith('business_')) {
+                            building.businessType = type.replace('business_', '');
+                            businessBuildings.push(building);
+                        }
+                        else buildings.push(building);
                     }
-                    
-                    let building = {
-                        x: bX, y: bY, w: bW, h: bH,
-                        color: `hsl(${hue}, 60%, 15%)`,
-                        neon: `hsl(${hue}, 100%, 50%)`,
-                        type: type,
-                        height: height,
-                        district: district.name,
-                        danger: district.danger,
-                        door: { x: bX + bW/2, y: bY + bH, w: 30, h: 10 }
-                    };
-                    
-                    if (type === 'prison') prisons.push(building);
-                    else if (type === 'shop') shops.push(building);
-                    else if (type === 'hospital') hospitals.push(building);
-                    else if (type.startsWith('business_')) {
-                        building.businessType = type.replace('business_', '');
-                        businessBuildings.push(building);
-                    }
-                    else buildings.push(building);
                 }
             }
         }
     }
     
+    // NPC машины
     for (let i = 0; i < 40; i++) {
         let road = roads[Math.floor(Math.random() * roads.length)];
         npcCars.push({
@@ -445,11 +474,11 @@ function spawnEntities() {
 function findSafeSpotInDistrict(district) {
     let safe = false, x, y;
     while(!safe) {
-        x = district.x + 100 + Math.random() * (district.w - 200);
-        y = district.y + 100 + Math.random() * (district.h - 200);
+        x = district.x + 150 + Math.random() * (district.w - 300);
+        y = district.y + 150 + Math.random() * (district.h - 300);
         safe = true;
         for(let b of [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings]) {
-            if (x > b.x - 20 && x < b.x + b.w + 20 && y > b.y - 20 && y < b.y + b.h + 20) {
+            if (x > b.x - 30 && x < b.x + b.w + 30 && y > b.y - 30 && y < b.y + b.h + 30) {
                 safe = false; break;
             }
         }
@@ -460,11 +489,11 @@ function findSafeSpotInDistrict(district) {
 function findSafeSpot() {
     let safe = false, x, y;
     while(!safe) {
-        x = 50 + Math.random() * (MAP_SIZE - 100);
-        y = 50 + Math.random() * (MAP_SIZE - 100);
+        x = 100 + Math.random() * (MAP_SIZE - 200);
+        y = 100 + Math.random() * (MAP_SIZE - 200);
         safe = true;
         for(let b of [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings]) {
-            if (x > b.x - 20 && x < b.x + b.w + 20 && y > b.y - 20 && y < b.y + b.h + 20) {
+            if (x > b.x - 30 && x < b.x + b.w + 30 && y > b.y - 30 && y < b.y + b.h + 30) {
                 safe = false; break;
             }
         }
@@ -488,7 +517,7 @@ function startGame() {
     spawnEntities();
     startTime = Date.now();
     updateHUD();
-    showNotification("🚔 МИССИЯ НАЧАТА! 24 бандита в 5 районах.");
+    showNotification("🚔 МИССИЯ НАЧАТА!");
 }
 
 function toggleCar() {
@@ -501,7 +530,7 @@ function toggleCar() {
         if (dist < 80) {
             player.inCar = true;
             policeCar.x = player.x; policeCar.y = player.y;
-            showNotification("🚔 В машине");
+            showNotification(" В машине");
         } else showNotification("⚠️ Ближе к машине!");
     }
     updateHUD();
@@ -557,7 +586,7 @@ function handleInteraction() {
                 arrested = true;
                 if (score >= totalSmugglers) endGame();
                 break;
-            } else showNotification("️ К ТЮРЬМЕ (красные)!");
+            } else showNotification("⚠️ К ТЮРЬМЕ!");
         }
     }
 
@@ -570,7 +599,7 @@ function handleInteraction() {
         }
         for (let b of businessBuildings) {
             if (Math.hypot(player.x - b.door.x, player.y - b.door.y) < 50) { 
-                if (b.owned) showNotification(`💼 Ваш ${BUSINESS_TYPES[b.businessType].name} приносит доход`);
+                if (b.owned) showNotification(`💼 Ваш бизнес приносит доход`);
                 else openBusinessMenu(b);
                 return; 
             }
@@ -618,7 +647,7 @@ function renderShopMenu() {
                 showNotification(`🔫 Куплено: ${w.name}!`);
                 updateHUD();
                 renderShopMenu();
-            } else showNotification("️ Недостаточно денег!");
+            } else showNotification("⚠️ Недостаточно денег!");
         };
         list.appendChild(div);
     }
@@ -633,7 +662,7 @@ function openHospital() {
 
 function healPlayer(amount, cost) {
     if (money < cost) { showNotification("⚠️ Недостаточно денег!"); return; }
-    if (player.hp >= player.maxHp) { showNotification("❤️ HP уже полное!"); return; }
+    if (player.hp >= player.maxHp) { showNotification("❤️ HP полное!"); return; }
     money -= cost;
     let healed = Math.min(amount, player.maxHp - player.hp);
     player.hp = Math.min(player.maxHp, player.hp + amount);
@@ -663,7 +692,7 @@ function renderBusinessMenu(focusBuilding = null) {
         div.className = 'business-item' + (owned > 0 ? ' owned' : '');
         div.innerHTML = `
             <h3 style="color:${b.color}">${b.name} (${owned})</h3>
-            <div class="stats">Пассивный доход каждый цикл</div>
+            <div class="stats">Пассивный доход</div>
             <div class="income">+$${b.income}/5сек</div>
             <div class="price ${!canAfford ? 'cant-afford' : ''}">$${b.price}</div>
         `;
@@ -672,7 +701,7 @@ function renderBusinessMenu(focusBuilding = null) {
                 money -= b.price;
                 ownedBusinesses.push({ type: type, income: b.income });
                 totalIncome += b.income;
-                showNotification(`💼 Куплен ${b.name}! +$${b.income}/5сек`);
+                showNotification(`💼 Куплен ${b.name}!`);
                 updateHUD();
                 renderBusinessMenu();
             } else showNotification("⚠️ Недостаточно денег!");
@@ -690,7 +719,7 @@ function closeSpecialMenu() {
 
 function enterBuilding(building, type) {
     state = 'interior';
-    camera.targetZoom = 1.5;
+    camera.targetZoom = 1.0;
     let room = {
         parent: building,
         x: building.x + 30, y: building.y + 30,
@@ -716,7 +745,7 @@ function enterBuilding(building, type) {
     }
     interiors = [room];
     player.x = room.x + room.w/2; player.y = room.y + room.h/2;
-    showNotification(type === 'prison' ? "️ ТЮРЬМА" : " ЗДАНИЕ");
+    showNotification(type === 'prison' ? "🏛️ ТЮРЬМА" : "🏢 ЗДАНИЕ");
 }
 
 function exitBuilding() {
@@ -725,7 +754,7 @@ function exitBuilding() {
         player.x = b.door.x; player.y = b.door.y + 30;
         interiors = [];
         state = 'play';
-        camera.targetZoom = 1.0;
+        camera.targetZoom = 0.5;
         showNotification("🚪 ВЫХОД");
     }
 }
@@ -913,7 +942,7 @@ function update() {
                     if (s.hp <= 0) {
                         addXP(s.xpValue);
                         money += s.moneyValue;
-                        showNotification(` УБИТ! +$${s.moneyValue} +${s.xpValue}XP`);
+                        showNotification(`💀 УБИТ! +$${s.moneyValue} +${s.xpValue}XP`);
                         createExplosion(s.x, s.y, '#f00', 25);
                         floatingTexts.push({ x: s.x, y: s.y - 20, text: `+$${s.moneyValue}`, life: 60, color: '#0f0' });
                         smugglers = smugglers.filter(sm => sm !== s);
@@ -954,7 +983,7 @@ function update() {
         businessIncomeTimer = 0;
         if (totalIncome > 0) {
             money += totalIncome;
-            showNotification(`💼 Доход от бизнесов: +$${totalIncome}`);
+            showNotification(`💼 Доход: +$${totalIncome}`);
             updateHUD();
         }
     }
@@ -1068,6 +1097,7 @@ function render() {
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
+    // Районы
     for (let district of DISTRICTS) {
         ctx.fillStyle = district.color + '08';
         ctx.fillRect(district.x, district.y, district.w, district.h);
@@ -1076,21 +1106,23 @@ function render() {
         ctx.strokeRect(district.x, district.y, district.w, district.h);
     }
 
+    // Сетка
     ctx.strokeStyle = '#1a1a3a';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for(let x=0; x<=MAP_SIZE; x+=200) { ctx.moveTo(x,0); ctx.lineTo(x,MAP_SIZE); }
-    for(let y=0; y<=MAP_SIZE; y+=200) { ctx.moveTo(0,y); ctx.lineTo(MAP_SIZE,y); }
+    for(let x=0; x<=MAP_SIZE; x+=100) { ctx.moveTo(x,0); ctx.lineTo(x,MAP_SIZE); }
+    for(let y=0; y<=MAP_SIZE; y+=100) { ctx.moveTo(0,y); ctx.lineTo(MAP_SIZE,y); }
     ctx.stroke();
 
+    // Дороги
     for (let road of roads) {
         ctx.fillStyle = '#2a2a3e';
         if (road.vertical) {
-            ctx.fillRect(road.x - 15, road.y, 15, road.h);
-            ctx.fillRect(road.x + road.w, road.y, 15, road.h);
+            ctx.fillRect(road.x - 20, road.y, 20, road.h);
+            ctx.fillRect(road.x + road.w, road.y, 20, road.h);
         } else {
-            ctx.fillRect(road.x, road.y - 15, road.w, 15);
-            ctx.fillRect(road.x, road.y + road.h, road.w, 15);
+            ctx.fillRect(road.x, road.y - 20, road.w, 20);
+            ctx.fillRect(road.x, road.y + road.h, road.w, 20);
         }
         ctx.fillStyle = '#1a1a2e';
         ctx.fillRect(road.x, road.y, road.w, road.h);
@@ -1104,11 +1136,38 @@ function render() {
         ctx.setLineDash([]);
     }
 
+    // Перекрестки
+    for (let inter of intersections) {
+        ctx.fillStyle = '#252535';
+        ctx.fillRect(inter.x, inter.y, inter.w, inter.h);
+        
+        // Разметка перекрестка
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([15, 15]);
+        ctx.strokeRect(inter.x + 10, inter.y + 10, inter.w - 20, inter.h - 20);
+        ctx.setLineDash([]);
+        
+        // Светофор
+        if (inter.hasTrafficLight) {
+            ctx.fillStyle = '#333';
+            ctx.fillRect(inter.x + inter.w/2 - 8, inter.y + inter.h/2 - 20, 16, 40);
+            ctx.fillStyle = '#f00';
+            ctx.beginPath(); ctx.arc(inter.x + inter.w/2, inter.y + inter.h/2 - 10, 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#ff0';
+            ctx.beginPath(); ctx.arc(inter.x + inter.w/2, inter.y + inter.h/2, 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#0f0';
+            ctx.beginPath(); ctx.arc(inter.x + inter.w/2, inter.y + inter.h/2 + 10, 5, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    // Здания
     let allBuildings = [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings];
     allBuildings.sort((a, b) => a.y - b.y);
 
     for (let b of allBuildings) drawBuilding3D(b);
 
+    // Интерьер
     if (state === 'interior' && interiors.length > 0) {
         let room = interiors[0];
         ctx.fillStyle = room.type === 'prison' ? '#200' : '#222';
@@ -1125,14 +1184,18 @@ function render() {
         ctx.fillText("[F] ВЫЙТИ", room.x + room.w/2, room.y + room.h - 20);
     }
 
+    // NPC машины
     for (let car of npcCars) drawCar3D(car.x, car.y, car.angle, car.w, car.h, car.color, false);
 
+    // Люди
     drawEntityList(civilians, '#888');
     drawEntityList(smugglers, '#f0f');
 
+    // Игрок или машина
     if (player.inCar) drawPoliceCar3D();
     else drawPlayer3D();
 
+    // Пули
     for(let b of bullets) {
         ctx.fillStyle = b.color || '#ff0';
         ctx.shadowColor = b.color || '#ff0';
@@ -1141,6 +1204,7 @@ function render() {
         ctx.shadowBlur = 0;
     }
 
+    // Частицы
     for(let p of particles) {
         ctx.globalAlpha = p.life / 30;
         ctx.fillStyle = p.color;
@@ -1148,6 +1212,7 @@ function render() {
     }
     ctx.globalAlpha = 1;
 
+    // Текст
     for(let ft of floatingTexts) {
         ctx.globalAlpha = ft.life / 60;
         ctx.fillStyle = ft.color;
@@ -1167,6 +1232,11 @@ function drawBuilding3D(b) {
     const h = b.height || 50;
     const depth = h * 0.6;
     
+    // Тень
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(b.x + 10, b.y + 10, b.w, b.h);
+    
+    // Южная грань
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.beginPath();
     ctx.moveTo(b.x, b.y + b.h);
@@ -1176,6 +1246,7 @@ function drawBuilding3D(b) {
     ctx.closePath();
     ctx.fill();
     
+    // Восточная грань
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath();
     ctx.moveTo(b.x + b.w, b.y);
@@ -1185,9 +1256,11 @@ function drawBuilding3D(b) {
     ctx.closePath();
     ctx.fill();
     
+    // Крыша
     ctx.fillStyle = b.color;
     ctx.fillRect(b.x, b.y - depth, b.w, b.h);
     
+    // Неоновая рамка
     ctx.strokeStyle = b.neon;
     ctx.lineWidth = 2;
     ctx.shadowColor = b.neon;
@@ -1195,15 +1268,17 @@ function drawBuilding3D(b) {
     ctx.strokeRect(b.x, b.y - depth, b.w, b.h);
     ctx.shadowBlur = 0;
     
-    ctx.fillStyle = 'rgba(255,255,100,0.4)';
-    for (let wx = b.x + 10; wx < b.x + b.w - 10; wx += 18) {
-        for (let wy = b.y + b.h - depth + 5; wy < b.y + b.h - 5; wy += 15) {
-            if (Math.random() > 0.3) ctx.fillRect(wx, wy, 8, 8);
+    // Окна
+    ctx.fillStyle = 'rgba(255,255,100,0.5)';
+    for (let wx = b.x + 15; wx < b.x + b.w - 15; wx += 20) {
+        for (let wy = b.y + b.h - depth + 8; wy < b.y + b.h - 8; wy += 18) {
+            if (Math.random() > 0.3) ctx.fillRect(wx, wy, 10, 10);
         }
     }
     
+    // Надпись
     ctx.fillStyle = b.neon;
-    ctx.font = 'bold 12px Courier New';
+    ctx.font = 'bold 14px Courier New';
     ctx.textAlign = 'center';
     let label = b.type.toUpperCase();
     if (b.type.startsWith('business_')) {
@@ -1211,14 +1286,15 @@ function drawBuilding3D(b) {
         label = BUSINESS_TYPES[bt].name + (b.owned ? ' ★' : '');
     }
     if (b.type === 'shop') label = '🛒 SHOP';
-    if (b.type === 'hospital') label = ' HOSPITAL';
-    if (b.type === 'prison') label = '⛓ PRISON';
-    ctx.fillText(label, b.x + b.w/2, b.y - depth - 10);
+    if (b.type === 'hospital') label = '🏥 HOSPITAL';
+    if (b.type === 'prison') label = ' PRISON';
+    ctx.fillText(label, b.x + b.w/2, b.y - depth - 15);
     
+    // Дверь
     ctx.fillStyle = '#0f0';
     ctx.shadowColor = '#0f0';
     ctx.shadowBlur = 10;
-    ctx.fillRect(b.door.x - b.door.w/2, b.y + b.h - 15, b.door.w, 10);
+    ctx.fillRect(b.door.x - b.door.w/2, b.y + b.h - 18, b.door.w, 12);
     ctx.shadowBlur = 0;
 }
 
@@ -1227,30 +1303,34 @@ function drawCar3D(x, y, angle, w, h, color, isPolice) {
     ctx.translate(x, y);
     ctx.rotate(angle);
     
+    // Тень
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.fillRect(-w/2 + 5, -h/2 + 5, w, h);
     
+    // 3D эффект
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(-w/2, -h/2 + 5, w, 8);
+    ctx.fillRect(-w/2, -h/2 + 8, w, 10);
     
+    // Корпус
     ctx.fillStyle = color;
     ctx.shadowColor = color;
     ctx.shadowBlur = 10;
     ctx.fillRect(-w/2, -h/2, w, h);
     ctx.shadowBlur = 0;
     
+    // Лобовое стекло
     ctx.fillStyle = '#0ff';
-    ctx.fillRect(w/2 - 15, -h/2 + 3, 10, h - 6);
+    ctx.fillRect(w/2 - 18, -h/2 + 4, 12, h - 8);
     
     if (isPolice) {
         ctx.fillStyle = (Date.now() % 500 < 250) ? '#f00' : '#00f';
         ctx.shadowColor = ctx.fillStyle;
         ctx.shadowBlur = 15;
-        ctx.fillRect(-10, -8, 20, 16);
+        ctx.fillRect(-12, -10, 24, 20);
         ctx.shadowBlur = 0;
         ctx.strokeStyle = '#0ff'; ctx.lineWidth = 2;
         ctx.strokeRect(-w/2, -h/2, w, h);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Courier New'; ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Courier New'; ctx.textAlign = 'center';
         ctx.fillText("POLICE", 0, 4);
     }
     
@@ -1261,14 +1341,76 @@ function drawPoliceCar3D() {
     drawCar3D(policeCar.x, policeCar.y, policeCar.angle, policeCar.w, policeCar.h, '#112', true);
 }
 
+// УЛУЧШЕННАЯ ОТРИСОВКА ЛЮДЕЙ
+function drawPerson(x, y, angle, radius, color, type, hp, maxHp) {
+    ctx.save();
+    ctx.translate(x, y);
+    
+    // Тень
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(3, radius + 2, radius, radius/2, 0, 0, Math.PI*2);
+    ctx.fill();
+    
+    ctx.rotate(angle);
+    
+    // Ноги (анимация ходьбы)
+    let legOffset = Math.sin(Date.now() / 200) * 3;
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-4, radius - 5, 3, 8 + legOffset);
+    ctx.fillRect(1, radius - 5, 3, 8 - legOffset);
+    
+    // Тело
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    
+    // Руки
+    ctx.fillStyle = color;
+    ctx.fillRect(radius - 3, -radius/2, 4, radius);
+    ctx.fillRect(-radius - 1, -radius/2, 4, radius);
+    
+    // Голова
+    ctx.fillStyle = '#fdb';
+    ctx.beginPath();
+    ctx.arc(0, -radius/3, radius * 0.5, 0, Math.PI*2);
+    ctx.fill();
+    
+    // Глаза
+    ctx.fillStyle = '#000';
+    ctx.fillRect(2, -radius/3 - 2, 2, 2);
+    ctx.fillRect(2, -radius/3 + 1, 2, 2);
+    
+    // Для бандитов - маска
+    if (type === 'smuggler') {
+        ctx.fillStyle = '#333';
+        ctx.fillRect(-radius/2, -radius/3 - 1, radius, 3);
+    }
+    
+    // Для полицейского - кепка
+    if (type === 'police') {
+        ctx.fillStyle = '#003';
+        ctx.fillRect(-radius/2, -radius/2 - 2, radius, 4);
+    }
+    
+    // Полоска HP
+    if (hp < maxHp) {
+        ctx.fillStyle = '#f00';
+        ctx.fillRect(-15, -radius - 10, 30, 4);
+        ctx.fillStyle = '#0f0';
+        ctx.fillRect(-15, -radius - 10, 30 * (hp / maxHp), 4);
+    }
+    
+    ctx.restore();
+}
+
 function drawEntityList(list, defaultColor) {
     for(let e of list) {
         if (e.state === 'arrested') continue;
-        ctx.save();
-        ctx.translate(e.x, e.y);
-        
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.beginPath(); ctx.ellipse(3, e.r, e.r, e.r/2, 0, 0, Math.PI*2); ctx.fill();
         
         let col = defaultColor;
         if (list === smugglers) {
@@ -1276,62 +1418,13 @@ function drawEntityList(list, defaultColor) {
             else if (e.state === 'hiding') col = '#808';
             else col = '#f0f';
         } else { if (e.state === 'panic') col = '#fff'; }
-
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.beginPath(); ctx.arc(2, 2, e.r, 0, Math.PI*2); ctx.fill();
         
-        ctx.fillStyle = col;
-        ctx.shadowColor = col;
-        ctx.shadowBlur = 12;
-        ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI*2); ctx.fill();
-        ctx.shadowBlur = 0;
-        
-        if (list === smugglers && e.hp < e.maxHp) {
-            ctx.fillStyle = '#f00'; ctx.fillRect(-15, -25, 30, 4);
-            ctx.fillStyle = '#0f0'; ctx.fillRect(-15, -25, 30 * (e.hp / e.maxHp), 4);
-        }
-        ctx.restore();
+        drawPerson(e.x, e.y, e.angle, e.r, col, list === smugglers ? 'smuggler' : 'civilian', e.hp, e.maxHp || 100);
     }
 }
 
 function drawPlayer3D() {
-    ctx.save();
-    ctx.translate(player.x, player.y);
-    
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.beginPath(); ctx.ellipse(3, player.r, player.r, player.r/2, 0, 0, Math.PI*2); ctx.fill();
-    
-    ctx.rotate(player.angle);
-    
-    if (player.invuln > 0 && Math.floor(player.invuln / 5) % 2 === 0) ctx.globalAlpha = 0.5;
-    
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath(); ctx.arc(2, 2, player.r, 0, Math.PI*2); ctx.fill();
-    
-    // Тело полицейского - крупнее и детальнее
-    ctx.fillStyle = '#0af';
-    ctx.shadowColor = '#0af';
-    ctx.shadowBlur = 15;
-    ctx.beginPath(); ctx.arc(0, 0, player.r, 0, Math.PI*2); ctx.fill();
-    ctx.shadowBlur = 0;
-    
-    // Оружие
-    ctx.fillStyle = '#222';
-    ctx.fillRect(8, -6, 20, 12);
-    ctx.fillStyle = WEAPONS[currentWeapon].color;
-    ctx.fillRect(20, -4, 10, 8);
-    
-    // Значок полицейского
-    ctx.fillStyle = '#ff0';
-    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI*2); ctx.fill();
-    
-    // Глаза (направление)
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(8, -3, 4, 3);
-    ctx.fillRect(8, 1, 4, 3);
-    
-    ctx.globalAlpha = 1;
-    ctx.restore();
+    drawPerson(player.x, player.y, player.angle, player.r, '#0af', 'police', player.hp, player.maxHp);
 }
 
 function drawMinimap() {
