@@ -155,7 +155,7 @@ h2 { font-size: 24px; color: #f0f; margin-bottom: 40px; }
   <div class="hud">⭐ УРОВЕНЬ: <span id="levelVal">1</span></div>
   <div class="hud">✨ XP: <span id="xpVal">0</span>/<span id="xpNextVal">100</span></div>
   <div class="hud">❤️ HP: <span id="hpVal">100</span></div>
-  <div class="hud">🔫 <span id="weaponVal">PISTOL</span></div>
+  <div class="hud"> <span id="weaponVal">PISTOL</span></div>
   <div class="hud" style="font-size: 11px; color: #aaa;">[E] Машина | [F] Действие | [B] Бизнесы | [1-4] Оружие</div>
 </div>
 
@@ -167,7 +167,7 @@ h2 { font-size: 24px; color: #f0f; margin-bottom: 40px; }
 
 <div id="shopMenu" class="hidden">
   <div class="shop-content">
-    <h2>🔫 ОРУЖЕЙНЫЙ МАГАЗИН</h2>
+    <h2> ОРУЖЕЙНЫЙ МАГАЗИН</h2>
     <div class="shop-money">Ваши деньги: $<span id="shopMoneyVal">0</span></div>
     <div class="weapon-list" id="weaponList"></div>
     <button class="close-btn" id="closeShop">ЗАКРЫТЬ [F]</button>
@@ -211,8 +211,8 @@ window.addEventListener('resize', resize);
 let state = 'menu';
 let keys = {};
 let mouse = { x: 0, y: 0 };
-// УМЕНЬШЕННЫЙ МАСШТАБ для обзора
-let camera = { x: 0, y: 0, zoom: 0.5, targetZoom: 0.5 };
+// УВЕЛИЧЕННЫЙ ЗУМ: 2.0 вместо 0.5
+let camera = { x: 0, y: 0, zoom: 2.0, targetZoom: 2.0 };
 let score = 0, totalSmugglers = 24;
 let startTime = 0;
 let businessIncomeTimer = 0;
@@ -281,7 +281,7 @@ let bullets = [];
 let particles = [];
 let floatingTexts = [];
 let roads = [];
-let intersections = []; // Перекрестки
+let intersections = [];
 
 window.addEventListener('keydown', e => { 
     keys[e.code] = true; 
@@ -322,11 +322,10 @@ function generateCity() {
     buildings = []; prisons = []; shops = []; hospitals = []; businessBuildings = [];
     roads = []; npcCars = []; intersections = [];
     
-    const blockSize = 300; // Увеличен размер блока для более правильной расстановки
+    const blockSize = 300;
     const roadWidth = 80;
     const sidewalkWidth = 20;
     
-    // Генерация дорог
     for (let x = 0; x < MAP_SIZE; x += blockSize) {
         roads.push({ x: x, y: 0, w: roadWidth, h: MAP_SIZE, vertical: true });
     }
@@ -334,7 +333,6 @@ function generateCity() {
         roads.push({ x: 0, y: y, w: MAP_SIZE, h: roadWidth, vertical: false });
     }
     
-    // Генерация перекрестков
     for (let x = 0; x < MAP_SIZE; x += blockSize) {
         for (let y = 0; y < MAP_SIZE; y += blockSize) {
             intersections.push({
@@ -347,17 +345,14 @@ function generateCity() {
     
     let shopCount = 0, hospitalCount = 0, prisonCount = 0, businessCount = 0;
     
-    // Упорядоченная генерация зданий по кварталам
     for (let district of DISTRICTS) {
         for (let x = district.x; x < district.x + district.w; x += blockSize) {
             for (let y = district.y; y < district.y + district.h; y += blockSize) {
                 if (x < 400 && y < 400) continue;
                 
-                // Каждый блок = один квартал с 1-4 зданиями
                 let buildingsInBlock = 1 + Math.floor(Math.random() * 3);
                 let positions = [];
                 
-                // Размещение зданий в квартале
                 if (buildingsInBlock === 1) {
                     positions.push({ x: x + roadWidth + 30, y: y + roadWidth + 30, w: blockSize - roadWidth - 60, h: blockSize - roadWidth - 60 });
                 } else if (buildingsInBlock === 2) {
@@ -424,7 +419,6 @@ function generateCity() {
         }
     }
     
-    // NPC машины
     for (let i = 0; i < 40; i++) {
         let road = roads[Math.floor(Math.random() * roads.length)];
         npcCars.push({
@@ -530,7 +524,7 @@ function toggleCar() {
         if (dist < 80) {
             player.inCar = true;
             policeCar.x = player.x; policeCar.y = player.y;
-            showNotification(" В машине");
+            showNotification("🚔 В машине");
         } else showNotification("⚠️ Ближе к машине!");
     }
     updateHUD();
@@ -539,7 +533,7 @@ function toggleCar() {
 function switchWeapon(weaponId) {
     if (ownedWeapons.includes(weaponId)) {
         currentWeapon = weaponId;
-        showNotification(`🔫 ${WEAPONS[weaponId].name}`);
+        showNotification(` ${WEAPONS[weaponId].name}`);
         updateHUD();
     } else {
         showNotification(`⚠️ ${WEAPONS[weaponId].name} не куплен!`);
@@ -586,7 +580,7 @@ function handleInteraction() {
                 arrested = true;
                 if (score >= totalSmugglers) endGame();
                 break;
-            } else showNotification("⚠️ К ТЮРЬМЕ!");
+            } else showNotification("️ К ТЮРЬМЕ!");
         }
     }
 
@@ -719,7 +713,7 @@ function closeSpecialMenu() {
 
 function enterBuilding(building, type) {
     state = 'interior';
-    camera.targetZoom = 1.0;
+    camera.targetZoom = 2.0; // Зум внутри здания тоже 2.0
     let room = {
         parent: building,
         x: building.x + 30, y: building.y + 30,
@@ -740,7 +734,7 @@ function enterBuilding(building, type) {
             hiddenSmuggler.x = room.x + room.w/2;
             hiddenSmuggler.y = room.y + room.h/2;
             hiddenSmuggler.state = 'hiding';
-            showNotification("⚠️ БАНДИТ СПРЯТАЛСЯ!");
+            showNotification("️ БАНДИТ СПРЯТАЛСЯ!");
         }
     }
     interiors = [room];
@@ -754,7 +748,7 @@ function exitBuilding() {
         player.x = b.door.x; player.y = b.door.y + 30;
         interiors = [];
         state = 'play';
-        camera.targetZoom = 0.5;
+        camera.targetZoom = 2.0; // Возврат к основному зуму 2.0
         showNotification("🚪 ВЫХОД");
     }
 }
@@ -1097,7 +1091,6 @@ function render() {
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
-    // Районы
     for (let district of DISTRICTS) {
         ctx.fillStyle = district.color + '08';
         ctx.fillRect(district.x, district.y, district.w, district.h);
@@ -1106,7 +1099,6 @@ function render() {
         ctx.strokeRect(district.x, district.y, district.w, district.h);
     }
 
-    // Сетка
     ctx.strokeStyle = '#1a1a3a';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -1114,7 +1106,6 @@ function render() {
     for(let y=0; y<=MAP_SIZE; y+=100) { ctx.moveTo(0,y); ctx.lineTo(MAP_SIZE,y); }
     ctx.stroke();
 
-    // Дороги
     for (let road of roads) {
         ctx.fillStyle = '#2a2a3e';
         if (road.vertical) {
@@ -1136,19 +1127,16 @@ function render() {
         ctx.setLineDash([]);
     }
 
-    // Перекрестки
     for (let inter of intersections) {
         ctx.fillStyle = '#252535';
         ctx.fillRect(inter.x, inter.y, inter.w, inter.h);
         
-        // Разметка перекрестка
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 3;
         ctx.setLineDash([15, 15]);
         ctx.strokeRect(inter.x + 10, inter.y + 10, inter.w - 20, inter.h - 20);
         ctx.setLineDash([]);
         
-        // Светофор
         if (inter.hasTrafficLight) {
             ctx.fillStyle = '#333';
             ctx.fillRect(inter.x + inter.w/2 - 8, inter.y + inter.h/2 - 20, 16, 40);
@@ -1161,13 +1149,11 @@ function render() {
         }
     }
 
-    // Здания
     let allBuildings = [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings];
     allBuildings.sort((a, b) => a.y - b.y);
 
     for (let b of allBuildings) drawBuilding3D(b);
 
-    // Интерьер
     if (state === 'interior' && interiors.length > 0) {
         let room = interiors[0];
         ctx.fillStyle = room.type === 'prison' ? '#200' : '#222';
@@ -1184,18 +1170,14 @@ function render() {
         ctx.fillText("[F] ВЫЙТИ", room.x + room.w/2, room.y + room.h - 20);
     }
 
-    // NPC машины
     for (let car of npcCars) drawCar3D(car.x, car.y, car.angle, car.w, car.h, car.color, false);
 
-    // Люди
     drawEntityList(civilians, '#888');
     drawEntityList(smugglers, '#f0f');
 
-    // Игрок или машина
     if (player.inCar) drawPoliceCar3D();
     else drawPlayer3D();
 
-    // Пули
     for(let b of bullets) {
         ctx.fillStyle = b.color || '#ff0';
         ctx.shadowColor = b.color || '#ff0';
@@ -1204,7 +1186,6 @@ function render() {
         ctx.shadowBlur = 0;
     }
 
-    // Частицы
     for(let p of particles) {
         ctx.globalAlpha = p.life / 30;
         ctx.fillStyle = p.color;
@@ -1212,7 +1193,6 @@ function render() {
     }
     ctx.globalAlpha = 1;
 
-    // Текст
     for(let ft of floatingTexts) {
         ctx.globalAlpha = ft.life / 60;
         ctx.fillStyle = ft.color;
@@ -1232,11 +1212,9 @@ function drawBuilding3D(b) {
     const h = b.height || 50;
     const depth = h * 0.6;
     
-    // Тень
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(b.x + 10, b.y + 10, b.w, b.h);
     
-    // Южная грань
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.beginPath();
     ctx.moveTo(b.x, b.y + b.h);
@@ -1246,7 +1224,6 @@ function drawBuilding3D(b) {
     ctx.closePath();
     ctx.fill();
     
-    // Восточная грань
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath();
     ctx.moveTo(b.x + b.w, b.y);
@@ -1256,11 +1233,9 @@ function drawBuilding3D(b) {
     ctx.closePath();
     ctx.fill();
     
-    // Крыша
     ctx.fillStyle = b.color;
     ctx.fillRect(b.x, b.y - depth, b.w, b.h);
     
-    // Неоновая рамка
     ctx.strokeStyle = b.neon;
     ctx.lineWidth = 2;
     ctx.shadowColor = b.neon;
@@ -1268,7 +1243,6 @@ function drawBuilding3D(b) {
     ctx.strokeRect(b.x, b.y - depth, b.w, b.h);
     ctx.shadowBlur = 0;
     
-    // Окна
     ctx.fillStyle = 'rgba(255,255,100,0.5)';
     for (let wx = b.x + 15; wx < b.x + b.w - 15; wx += 20) {
         for (let wy = b.y + b.h - depth + 8; wy < b.y + b.h - 8; wy += 18) {
@@ -1276,7 +1250,6 @@ function drawBuilding3D(b) {
         }
     }
     
-    // Надпись
     ctx.fillStyle = b.neon;
     ctx.font = 'bold 14px Courier New';
     ctx.textAlign = 'center';
@@ -1286,11 +1259,10 @@ function drawBuilding3D(b) {
         label = BUSINESS_TYPES[bt].name + (b.owned ? ' ★' : '');
     }
     if (b.type === 'shop') label = '🛒 SHOP';
-    if (b.type === 'hospital') label = '🏥 HOSPITAL';
-    if (b.type === 'prison') label = ' PRISON';
+    if (b.type === 'hospital') label = ' HOSPITAL';
+    if (b.type === 'prison') label = '⛓ PRISON';
     ctx.fillText(label, b.x + b.w/2, b.y - depth - 15);
     
-    // Дверь
     ctx.fillStyle = '#0f0';
     ctx.shadowColor = '#0f0';
     ctx.shadowBlur = 10;
@@ -1303,22 +1275,18 @@ function drawCar3D(x, y, angle, w, h, color, isPolice) {
     ctx.translate(x, y);
     ctx.rotate(angle);
     
-    // Тень
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.fillRect(-w/2 + 5, -h/2 + 5, w, h);
     
-    // 3D эффект
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(-w/2, -h/2 + 8, w, 10);
     
-    // Корпус
     ctx.fillStyle = color;
     ctx.shadowColor = color;
     ctx.shadowBlur = 10;
     ctx.fillRect(-w/2, -h/2, w, h);
     ctx.shadowBlur = 0;
     
-    // Лобовое стекло
     ctx.fillStyle = '#0ff';
     ctx.fillRect(w/2 - 18, -h/2 + 4, 12, h - 8);
     
@@ -1341,12 +1309,10 @@ function drawPoliceCar3D() {
     drawCar3D(policeCar.x, policeCar.y, policeCar.angle, policeCar.w, policeCar.h, '#112', true);
 }
 
-// УЛУЧШЕННАЯ ОТРИСОВКА ЛЮДЕЙ
 function drawPerson(x, y, angle, radius, color, type, hp, maxHp) {
     ctx.save();
     ctx.translate(x, y);
     
-    // Тень
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath();
     ctx.ellipse(3, radius + 2, radius, radius/2, 0, 0, Math.PI*2);
@@ -1354,13 +1320,11 @@ function drawPerson(x, y, angle, radius, color, type, hp, maxHp) {
     
     ctx.rotate(angle);
     
-    // Ноги (анимация ходьбы)
     let legOffset = Math.sin(Date.now() / 200) * 3;
     ctx.fillStyle = '#222';
     ctx.fillRect(-4, radius - 5, 3, 8 + legOffset);
     ctx.fillRect(1, radius - 5, 3, 8 - legOffset);
     
-    // Тело
     ctx.fillStyle = color;
     ctx.shadowColor = color;
     ctx.shadowBlur = 12;
@@ -1369,35 +1333,29 @@ function drawPerson(x, y, angle, radius, color, type, hp, maxHp) {
     ctx.fill();
     ctx.shadowBlur = 0;
     
-    // Руки
     ctx.fillStyle = color;
     ctx.fillRect(radius - 3, -radius/2, 4, radius);
     ctx.fillRect(-radius - 1, -radius/2, 4, radius);
     
-    // Голова
     ctx.fillStyle = '#fdb';
     ctx.beginPath();
     ctx.arc(0, -radius/3, radius * 0.5, 0, Math.PI*2);
     ctx.fill();
     
-    // Глаза
     ctx.fillStyle = '#000';
     ctx.fillRect(2, -radius/3 - 2, 2, 2);
     ctx.fillRect(2, -radius/3 + 1, 2, 2);
     
-    // Для бандитов - маска
     if (type === 'smuggler') {
         ctx.fillStyle = '#333';
         ctx.fillRect(-radius/2, -radius/3 - 1, radius, 3);
     }
     
-    // Для полицейского - кепка
     if (type === 'police') {
         ctx.fillStyle = '#003';
         ctx.fillRect(-radius/2, -radius/2 - 2, radius, 4);
     }
     
-    // Полоска HP
     if (hp < maxHp) {
         ctx.fillStyle = '#f00';
         ctx.fillRect(-15, -radius - 10, 30, 4);
