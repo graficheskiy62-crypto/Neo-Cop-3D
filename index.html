@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>NEO-COP 3D: Districts & Business</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+body { background: #050510; overflow: hidden; font-family: 'Courier New', monospace; color: #0ff; }
+canvas { display: block; cursor: crosshair; }
+
+#ui { position: fixed; top: 10px; left: 10px; z-index: 10; pointer-events: none; max-width: 300px; }
+.hud { 
+    background: rgba(0, 10, 20, 0.9); 
+    border-left: 4px solid #0ff; 
+    padding: 8px 15px; 
+    margin-bottom: 8px; 
+    font-size: 14px; 
+    text-shadow: 0 0 5px #0ff; 
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+.hud span { color: #ff0; font-weight: bold; }
+.hud.money { border-left-color: #0f0; }
+.hud.money span { color: #0f0; }
+.hud.business { border-left-color: #f0f; }
+.hud.business span { color: #f0f; }
+
+.screen { 
+    position: fixed; inset: 0; display: flex; flex-direction: column; 
+    align-items: center; justify-content: center; z-index: 20; 
+    background: rgba(0,0,0,0.95);
+}
+h1 { font-size: 60px; color: #0ff; text-shadow: 4px 4px 0px #f0f; margin-bottom: 20px; }
+h2 { font-size: 24px; color: #f0f; margin-bottom: 40px; }
+.btn { 
+    background: transparent; border: 2px solid #0ff; color: #0ff; 
+    padding: 15px 50px; font-size: 24px; font-family: inherit; 
+    cursor: pointer; letter-spacing: 3px; transition: 0.3s; 
+}
+.btn:hover { background: #0ff; color: #000; box-shadow: 0 0 30px #0ff; }
+.controls { color: #aaa; font-size: 14px; margin-top: 30px; line-height: 1.8; text-align: center; max-width: 600px; }
+.controls b { color: #fff; }
+.hidden { display: none !important; }
+
+#notification {
+    position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 20px; text-shadow: 0 0 10px #000;
+    opacity: 0; transition: opacity 0.5s; pointer-events: none;
+}
+
+#hpBar { position: fixed; top: 0; left: 0; width: 100%; height: 6px; background: rgba(0,0,0,0.5); z-index: 5; }
+#hpFill { height: 100%; background: linear-gradient(90deg, #f00, #ff0, #0f0); width: 100%; transition: width 0.3s; }
+#xpBar { position: fixed; top: 6px; left: 0; width: 100%; height: 4px; background: rgba(0,0,0,0.5); z-index: 5; }
+#xpFill { height: 100%; background: linear-gradient(90deg, #0f0, #0ff); width: 0%; transition: width 0.3s; }
+
+#districtIndicator {
+    position: fixed; top: 10px; right: 180px; z-index: 10;
+    background: rgba(0, 10, 20, 0.9);
+    border: 2px solid #0ff;
+    padding: 10px 20px;
+    font-size: 18px;
+    text-shadow: 0 0 10px #0ff;
+}
+
+#businessMenu, #shopMenu {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    z-index: 15; background: rgba(0,0,0,0.85);
+}
+.business-content, .shop-content {
+    background: rgba(0, 20, 40, 0.95);
+    border: 3px solid #f0f;
+    padding: 30px;
+    max-width: 800px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 0 40px rgba(255, 0, 255, 0.3);
+}
+.shop-content { border-color: #0ff; box-shadow: 0 0 40px rgba(0, 255, 255, 0.3); }
+.business-content h2, .shop-content h2 { margin-bottom: 20px; text-align: center; font-size: 32px; }
+.business-content h2 { color: #f0f; }
+.shop-content h2 { color: #0ff; }
+.business-money, .shop-money { text-align: center; color: #0f0; font-size: 20px; margin-bottom: 20px; }
+.business-income { text-align: center; color: #ff0; font-size: 16px; margin-bottom: 20px; }
+.business-list, .weapon-list { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+.business-item, .weapon-item {
+    background: rgba(0, 40, 80, 0.6);
+    border: 2px solid #f0f;
+    padding: 15px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.weapon-item { border-color: #0ff; }
+.business-item:hover, .weapon-item:hover { transform: scale(1.02); }
+.business-item.owned, .weapon-item.owned { border-color: #0f0; opacity: 0.8; }
+.weapon-item.equipped { border-color: #ff0; background: rgba(100, 100, 0, 0.3); }
+.business-item h3, .weapon-item h3 { color: #fff; margin-bottom: 5px; }
+.business-item .stats, .weapon-item .stats { color: #aaa; font-size: 12px; line-height: 1.6; }
+.business-item .price, .weapon-item .price { color: #0f0; font-weight: bold; margin-top: 8px; }
+.business-item .price.cant-afford, .weapon-item .price.cant-afford { color: #f00; }
+.business-item .income { color: #ff0; font-size: 14px; margin-top: 5px; }
+.close-btn {
+    display: block; margin: 0 auto;
+    background: transparent; border: 2px solid #f00; color: #f00;
+    padding: 10px 30px; font-family: inherit; font-size: 16px;
+    cursor: pointer;
+}
+.close-btn:hover { background: #f00; color: #000; }
+
+#hospitalOverlay {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    z-index: 15; background: rgba(0,0,0,0.85);
+}
+.hospital-content {
+    background: rgba(40, 0, 0, 0.95);
+    border: 3px solid #f00;
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(255, 0, 0, 0.3);
+}
+.hospital-content h2 { color: #f00; font-size: 36px; margin-bottom: 20px; }
+.hospital-content p { color: #fff; font-size: 18px; margin-bottom: 20px; }
+.heal-btn {
+    background: transparent; border: 2px solid #0f0; color: #0f0;
+    padding: 12px 40px; font-family: inherit; font-size: 18px;
+    cursor: pointer; margin: 5px;
+}
+.heal-btn:hover { background: #0f0; color: #000; }
+</style>
+</head>
+<body>
+
+<div id="startScreen" class="screen">
+  <h1>NEO-COP 3D</h1>
+  <h2>DISTRICTS & BUSINESS</h2>
+  <button class="btn" id="playBtn">НАЧАТЬ ИГРУ</button>
+  <div class="controls">
+    <b>WASD</b> — Движение / Езда | <b>E</b> — Машина<br>
+    <b>F</b> — Действие / Войти / Закрыть меню<br>
+    <b>ЛКМ / ПРОБЕЛ</b> — Стрельба | <b>SHIFT</b> — Бег<br>
+    <b>1-4</b> — Смена оружия | <b>B</b> — Бизнесы<br><br>
+    <i style="color:#0ff">5 районов с разным уровнем опасности<br>
+    💼 Покупай бизнесы для пассивного дохода<br>
+     24 бандита разбросаны по городу</i>
+  </div>
+</div>
+
+<div id="endScreen" class="screen hidden">
+  <h1>МИССИЯ ЗАВЕРШЕНА</h1>
+  <div id="finalStats" style="text-align:center; font-size: 20px; color: #fff; margin-bottom: 30px;"></div>
+  <button class="btn" id="restartBtn">ЗАНОВО</button>
+</div>
+
+<div id="ui" class="hidden">
+  <div class="hud">🎯 АРЕСТЫ: <span id="scoreVal">0</span> / <span id="totalVal">0</span></div>
+  <div class="hud money">💰 ДЕНЬГИ: $<span id="moneyVal">500</span></div>
+  <div class="hud business">💼 ДОХОД: $<span id="incomeVal">0</span>/5сек</div>
+  <div class="hud">⭐ УРОВЕНЬ: <span id="levelVal">1</span></div>
+  <div class="hud">✨ XP: <span id="xpVal">0</span>/<span id="xpNextVal">100</span></div>
+  <div class="hud">❤️ HP: <span id="hpVal">100</span></div>
+  <div class="hud">🔫 <span id="weaponVal">PISTOL</span></div>
+  <div class="hud" style="font-size: 11px; color: #aaa;">[E] Машина | [F] Действие | [B] Бизнесы | [1-4] Оружие</div>
+</div>
+
+<div id="districtIndicator">📍 <span id="districtName">DOWNTOWN</span></div>
+
+<div id="hpBar"><div id="hpFill"></div></div>
+<div id="xpBar"><div id="xpFill"></div></div>
+<div id="notification"></div>
+
+<div id="shopMenu" class="hidden">
+  <div class="shop-content">
+    <h2>🔫 ОРУЖЕЙНЫЙ МАГАЗИН</h2>
+    <div class="shop-money">Ваши деньги: $<span id="shopMoneyVal">0</span></div>
+    <div class="weapon-list" id="weaponList"></div>
+    <button class="close-btn" id="closeShop">ЗАКРЫТЬ [F]</button>
+  </div>
+</div>
+
+<div id="hospitalOverlay" class="hidden">
+  <div class="hospital-content">
+    <h2>🏥 БОЛЬНИЦА</h2>
+    <p>HP: <span id="hospitalHp">100</span> / <span id="hospitalMaxHp">100</span></p>
+    <p style="color:#0f0">Полное лечение: $50</p>
+    <p style="color:#ff0">Частичное (+30 HP): $20</p>
+    <button class="heal-btn" id="healFull">ЛЕЧИТЬ ПОЛНОСТЬЮ ($50)</button>
+    <button class="heal-btn" id="healPartial">+30 HP ($20)</button>
+    <button class="close-btn" id="closeHospital" style="border-color:#f00;color:#f00;margin-top:15px">УЙТИ [F]</button>
+  </div>
+</div>
+
+<div id="businessMenu" class="hidden">
+  <div class="business-content">
+    <h2> УПРАВЛЕНИЕ БИЗНЕСАМИ</h2>
+    <div class="business-money">Ваши деньги: $<span id="businessMoneyVal">0</span></div>
+    <div class="business-income">Текущий доход: $<span id="businessIncomeVal">0</span>/5сек</div>
+    <div class="business-list" id="businessList"></div>
+    <button class="close-btn" id="closeBusiness">ЗАКРЫТЬ [B]</button>
+  </div>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const MAP_SIZE = 5000;
+let W, H;
+
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+let state = 'menu';
+let keys = {};
+let mouse = { x: 0, y: 0 };
+// УВЕЛИЧЕННЫЙ МАСШТАБ — персонаж теперь хорошо виден
+let camera = { x: 0, y: 0, zoom: 1.0, targetZoom: 1.0 };
+let score = 0, totalSmugglers = 24;
+let startTime = 0;
+let businessIncomeTimer = 0;
+
+let money = 500;
+let xp = 0, level = 1, xpToNextLevel = 100;
+let totalIncome = 0;
+
+const DISTRICTS = [
+    { name: 'DOWNTOWN', x: 0, y: 0, w: 2000, h: 2000, color: '#0ff', danger: 2 },
+    { name: 'NEON DISTRICT', x: 2000, y: 0, w: 1500, h: 2000, color: '#f0f', danger: 3 },
+    { name: 'SLUMS', x: 3500, y: 0, w: 1500, h: 2500, color: '#f00', danger: 5 },
+    { name: 'INDUSTRIAL', x: 0, y: 2000, w: 2500, h: 3000, color: '#ff0', danger: 3 },
+    { name: 'SUBURBS', x: 2500, y: 2000, w: 2500, h: 3000, color: '#0f0', danger: 1 }
+];
+
+const WEAPONS = {
+    pistol: { name: 'PISTOL', damage: 15, fireRate: 12, spread: 0.05, bullets: 1, price: 0, color: '#ff0', auto: false },
+    shotgun: { name: 'SHOTGUN', damage: 12, fireRate: 35, spread: 0.3, bullets: 5, price: 500, color: '#f80', auto: false },
+    smg: { name: 'SMG', damage: 10, fireRate: 5, spread: 0.15, bullets: 1, price: 800, color: '#0ff', auto: true },
+    sniper: { name: 'SNIPER', damage: 100, fireRate: 60, spread: 0.01, bullets: 1, price: 1200, color: '#f0f', auto: false }
+};
+
+let currentWeapon = 'pistol';
+let ownedWeapons = ['pistol'];
+
+const BUSINESS_TYPES = {
+    shop: { name: 'МАГАЗИН', price: 1000, income: 10, color: '#0f0' },
+    club: { name: 'КЛУБ', price: 2500, income: 25, color: '#f0f' },
+    warehouse: { name: 'СКЛАД', price: 1500, income: 15, color: '#ff0' },
+    casino: { name: 'КАЗИНО', price: 5000, income: 50, color: '#f00' }
+};
+
+let ownedBusinesses = [];
+
+// УВЕЛИЧЕН РАЗМЕР ПЕРСОНАЖА
+let player = { 
+    x: 1000, y: 1000, r: 18, 
+    speed: 3.5, runSpeed: 6, 
+    angle: 0, 
+    hp: 100, maxHp: 100,
+    inCar: false, 
+    shootCd: 0,
+    invuln: 0
+};
+
+let policeCar = { 
+    x: 950, y: 1000, 
+    w: 90, h: 45, 
+    speed: 0, maxSpeed: 14, 
+    angle: 0, 
+    acceleration: 0.4,
+    friction: 0.95,
+    turnSpeed: 0.08
+};
+
+let buildings = [];
+let prisons = [];
+let shops = [];
+let hospitals = [];
+let businessBuildings = [];
+let interiors = [];
+let smugglers = [];
+let civilians = [];
+let npcCars = [];
+let bullets = [];
+let particles = [];
+let floatingTexts = [];
+let roads = [];
+
+window.addEventListener('keydown', e => { 
+    keys[e.code] = true; 
+    if(e.code === 'Space') e.preventDefault();
+    
+    if (state === 'play') {
+        if (e.code === 'KeyE') toggleCar();
+        if (e.code === 'KeyF') handleInteraction();
+        if (e.code === 'KeyB') toggleBusinessMenu();
+        if (e.code === 'Digit1') switchWeapon('pistol');
+        if (e.code === 'Digit2') switchWeapon('shotgun');
+        if (e.code === 'Digit3') switchWeapon('smg');
+        if (e.code === 'Digit4') switchWeapon('sniper');
+    } else if (state === 'shop' || state === 'hospital' || state === 'business') {
+        if (e.code === 'KeyF' || e.code === 'KeyB') closeSpecialMenu();
+    }
+});
+window.addEventListener('keyup', e => keys[e.code] = false);
+window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('mousedown', () => { if(state==='play') shoot(); });
+
+document.getElementById('playBtn').onclick = startGame;
+document.getElementById('restartBtn').onclick = () => location.reload();
+document.getElementById('closeShop').onclick = closeSpecialMenu;
+document.getElementById('closeHospital').onclick = closeSpecialMenu;
+document.getElementById('closeBusiness').onclick = closeSpecialMenu;
+document.getElementById('healFull').onclick = () => healPlayer(9999, 50);
+document.getElementById('healPartial').onclick = () => healPlayer(30, 20);
+
+function getCurrentDistrict() {
+    for (let d of DISTRICTS) {
+        if (player.x >= d.x && player.x < d.x + d.w && player.y >= d.y && player.y < d.y + d.h) return d;
+    }
+    return DISTRICTS[0];
+}
+
+function generateCity() {
+    buildings = []; prisons = []; shops = []; hospitals = []; businessBuildings = [];
+    roads = []; npcCars = [];
+    
+    const blockSize = 200;
+    const roadWidth = 60;
+    const sidewalkWidth = 15;
+    
+    for (let x = 0; x < MAP_SIZE; x += blockSize) {
+        roads.push({ x: x, y: 0, w: roadWidth, h: MAP_SIZE, vertical: true });
+    }
+    for (let y = 0; y < MAP_SIZE; y += blockSize) {
+        roads.push({ x: 0, y: y, w: MAP_SIZE, h: roadWidth, vertical: false });
+    }
+    
+    let shopCount = 0, hospitalCount = 0, prisonCount = 0, businessCount = 0;
+    
+    for (let district of DISTRICTS) {
+        for (let x = district.x; x < district.x + district.w; x += blockSize) {
+            for (let y = district.y; y < district.y + district.h; y += blockSize) {
+                if (x < 350 && y < 350) continue;
+                if (Math.random() > 0.15) {
+                    let bW = blockSize - roadWidth - sidewalkWidth * 2 - 10;
+                    let bH = blockSize - roadWidth - sidewalkWidth * 2 - 10;
+                    let bX = x + roadWidth/2 + sidewalkWidth + 5;
+                    let bY = y + roadWidth/2 + sidewalkWidth + 5;
+                    
+                    let type = 'office';
+                    let hue = Math.random() * 60 + 240;
+                    let height = 40 + Math.random() * 60;
+                    
+                    let rand = Math.random();
+                    if (rand < 0.05 && shopCount < 8) {
+                        type = 'shop'; shopCount++; hue = 120; height = 50;
+                    } else if (rand < 0.08 && hospitalCount < 5) {
+                        type = 'hospital'; hospitalCount++; hue = 0; height = 70;
+                    } else if (rand < 0.1 && prisonCount < 4) {
+                        type = 'prison'; prisonCount++; hue = 0; height = 80;
+                    } else if (rand < 0.15 && businessCount < 12) {
+                        let bTypes = Object.keys(BUSINESS_TYPES);
+                        let bType = bTypes[Math.floor(Math.random() * bTypes.length)];
+                        type = 'business_' + bType;
+                        businessCount++;
+                        hue = BUSINESS_TYPES[bType].color === '#0f0' ? 120 : 
+                              BUSINESS_TYPES[bType].color === '#f0f' ? 300 :
+                              BUSINESS_TYPES[bType].color === '#ff0' ? 60 : 0;
+                        height = 60;
+                    } else if (rand > 0.5) {
+                        type = 'apartment';
+                        height = 60 + Math.random() * 40;
+                    }
+                    
+                    let building = {
+                        x: bX, y: bY, w: bW, h: bH,
+                        color: `hsl(${hue}, 60%, 15%)`,
+                        neon: `hsl(${hue}, 100%, 50%)`,
+                        type: type,
+                        height: height,
+                        district: district.name,
+                        danger: district.danger,
+                        door: { x: bX + bW/2, y: bY + bH, w: 30, h: 10 }
+                    };
+                    
+                    if (type === 'prison') prisons.push(building);
+                    else if (type === 'shop') shops.push(building);
+                    else if (type === 'hospital') hospitals.push(building);
+                    else if (type.startsWith('business_')) {
+                        building.businessType = type.replace('business_', '');
+                        businessBuildings.push(building);
+                    }
+                    else buildings.push(building);
+                }
+            }
+        }
+    }
+    
+    for (let i = 0; i < 40; i++) {
+        let road = roads[Math.floor(Math.random() * roads.length)];
+        npcCars.push({
+            x: road.vertical ? road.x + road.w/2 : Math.random() * MAP_SIZE,
+            y: road.vertical ? Math.random() * MAP_SIZE : road.y + road.h/2,
+            w: 70, h: 35,
+            speed: 3 + Math.random() * 2,
+            angle: road.vertical ? Math.PI/2 : 0,
+            color: `hsl(${Math.random()*360}, 70%, 50%)`,
+            road: road
+        });
+    }
+}
+
+function spawnEntities() {
+    smugglers = []; civilians = [];
+    
+    let smugglersPerDistrict = Math.ceil(totalSmugglers / DISTRICTS.length);
+    for (let district of DISTRICTS) {
+        let count = Math.floor(smugglersPerDistrict * (district.danger / 3));
+        for(let i=0; i<count && smugglers.length < totalSmugglers; i++) {
+            let pos = findSafeSpotInDistrict(district);
+            smugglers.push({
+                x: pos.x, y: pos.y, r: 16, 
+                hp: 50 + district.danger * 10, maxHp: 50 + district.danger * 10,
+                state: 'wander', 
+                angle: Math.random()*Math.PI*2,
+                timer: 0, color: '#f0f',
+                xpValue: 25 + district.danger * 10,
+                moneyValue: 30 + district.danger * 20,
+                shootCd: 0, shootRange: 250 + district.danger * 20, shootDamage: 5 + district.danger * 2,
+                district: district.name
+            });
+        }
+    }
+    
+    for(let i=0; i<80; i++) {
+        let pos = findSafeSpot();
+        civilians.push({
+            x: pos.x, y: pos.y, r: 14,
+            angle: Math.random()*Math.PI*2,
+            timer: 0, speed: 1.5, color: '#888'
+        });
+    }
+}
+
+function findSafeSpotInDistrict(district) {
+    let safe = false, x, y;
+    while(!safe) {
+        x = district.x + 100 + Math.random() * (district.w - 200);
+        y = district.y + 100 + Math.random() * (district.h - 200);
+        safe = true;
+        for(let b of [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings]) {
+            if (x > b.x - 20 && x < b.x + b.w + 20 && y > b.y - 20 && y < b.y + b.h + 20) {
+                safe = false; break;
+            }
+        }
+    }
+    return {x, y};
+}
+
+function findSafeSpot() {
+    let safe = false, x, y;
+    while(!safe) {
+        x = 50 + Math.random() * (MAP_SIZE - 100);
+        y = 50 + Math.random() * (MAP_SIZE - 100);
+        safe = true;
+        for(let b of [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings]) {
+            if (x > b.x - 20 && x < b.x + b.w + 20 && y > b.y - 20 && y < b.y + b.h + 20) {
+                safe = false; break;
+            }
+        }
+    }
+    return {x, y};
+}
+
+function startGame() {
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('ui').classList.remove('hidden');
+    state = 'play';
+    score = 0; money = 500;
+    xp = 0; level = 1; xpToNextLevel = 100;
+    totalIncome = 0;
+    player.hp = 100; player.maxHp = 100; player.inCar = false; player.invuln = 0;
+    currentWeapon = 'pistol'; ownedWeapons = ['pistol'];
+    ownedBusinesses = [];
+    policeCar.x = 950; policeCar.y = 1000; policeCar.speed = 0; policeCar.angle = 0;
+    bullets = []; particles = []; interiors = []; floatingTexts = [];
+    generateCity();
+    spawnEntities();
+    startTime = Date.now();
+    updateHUD();
+    showNotification("🚔 МИССИЯ НАЧАТА! 24 бандита в 5 районах.");
+}
+
+function toggleCar() {
+    if (player.inCar) {
+        player.inCar = false;
+        player.x = policeCar.x + 60; player.y = policeCar.y + 30;
+        showNotification("🚶 Вышли из машины");
+    } else {
+        let dist = Math.hypot(player.x - policeCar.x, player.y - policeCar.y);
+        if (dist < 80) {
+            player.inCar = true;
+            policeCar.x = player.x; policeCar.y = player.y;
+            showNotification("🚔 В машине");
+        } else showNotification("⚠️ Ближе к машине!");
+    }
+    updateHUD();
+}
+
+function switchWeapon(weaponId) {
+    if (ownedWeapons.includes(weaponId)) {
+        currentWeapon = weaponId;
+        showNotification(`🔫 ${WEAPONS[weaponId].name}`);
+        updateHUD();
+    } else {
+        showNotification(`⚠️ ${WEAPONS[weaponId].name} не куплен!`);
+    }
+}
+
+function toggleBusinessMenu() {
+    if (state === 'business') closeSpecialMenu();
+    else if (state === 'play') {
+        state = 'business';
+        renderBusinessMenu();
+        document.getElementById('businessMenu').classList.remove('hidden');
+    }
+}
+
+function handleInteraction() {
+    if (state === 'shop' || state === 'hospital' || state === 'business') {
+        closeSpecialMenu();
+        return;
+    }
+    
+    let arrested = false;
+    for (let s of smugglers) {
+        if (s.state === 'arrested') continue;
+        let sourceX = player.inCar ? policeCar.x : player.x;
+        let sourceY = player.inCar ? policeCar.y : player.y;
+        let dist = Math.hypot(sourceX - s.x, sourceY - s.y);
+        
+        if (dist < 70) {
+            let nearPrison = false;
+            for (let p of prisons) {
+                if (sourceX > p.x - 50 && sourceX < p.x + p.w + 50 &&
+                    sourceY > p.y - 50 && sourceY < p.y + p.h + 50) {
+                    nearPrison = true; break;
+                }
+            }
+            if (nearPrison) {
+                s.state = 'arrested';
+                score++;
+                money += 100;
+                addXP(50);
+                createExplosion(s.x, s.y, '#0f0', 20);
+                showNotification("✅ АРЕСТ! +$100 +50XP");
+                arrested = true;
+                if (score >= totalSmugglers) endGame();
+                break;
+            } else showNotification("️ К ТЮРЬМЕ (красные)!");
+        }
+    }
+
+    if (!arrested && !player.inCar) {
+        for (let b of shops) {
+            if (Math.hypot(player.x - b.door.x, player.y - b.door.y) < 50) { openShop(); return; }
+        }
+        for (let b of hospitals) {
+            if (Math.hypot(player.x - b.door.x, player.y - b.door.y) < 50) { openHospital(); return; }
+        }
+        for (let b of businessBuildings) {
+            if (Math.hypot(player.x - b.door.x, player.y - b.door.y) < 50) { 
+                if (b.owned) showNotification(`💼 Ваш ${BUSINESS_TYPES[b.businessType].name} приносит доход`);
+                else openBusinessMenu(b);
+                return; 
+            }
+        }
+        for (let p of prisons) {
+            if (Math.hypot(player.x - p.door.x, player.y - p.door.y) < 50) { enterBuilding(p, 'prison'); return; }
+        }
+        for (let b of buildings) {
+            if (Math.hypot(player.x - b.door.x, player.y - b.door.y) < 50) { enterBuilding(b, 'apartment'); return; }
+        }
+    }
+    
+    if (interiors.length > 0 && !arrested) exitBuilding();
+}
+
+function openShop() {
+    state = 'shop';
+    renderShopMenu();
+    document.getElementById('shopMenu').classList.remove('hidden');
+}
+
+function renderShopMenu() {
+    document.getElementById('shopMoneyVal').textContent = money;
+    const list = document.getElementById('weaponList');
+    list.innerHTML = '';
+    
+    for (let [id, w] of Object.entries(WEAPONS)) {
+        const owned = ownedWeapons.includes(id);
+        const equipped = currentWeapon === id;
+        const canAfford = money >= w.price;
+        
+        const div = document.createElement('div');
+        div.className = 'weapon-item' + (owned ? ' owned' : '') + (equipped ? ' equipped' : '');
+        div.innerHTML = `
+            <h3 style="color:${w.color}">${w.name} ${equipped ? '★' : ''}</h3>
+            <div class="stats">Урон: ${w.damage} | Скор: ${w.fireRate}<br>Пуль: ${w.bullets} | Разброс: ${(w.spread*100).toFixed(0)}%</div>
+            <div class="price ${(!canAfford && !owned) ? 'cant-afford' : ''}">${owned ? (equipped ? 'ЭКИПИРОВАНО' : 'КУПЛЕНО') : `$${w.price}`}</div>
+        `;
+        div.onclick = () => {
+            if (owned) { switchWeapon(id); renderShopMenu(); }
+            else if (canAfford) {
+                money -= w.price;
+                ownedWeapons.push(id);
+                currentWeapon = id;
+                showNotification(`🔫 Куплено: ${w.name}!`);
+                updateHUD();
+                renderShopMenu();
+            } else showNotification("️ Недостаточно денег!");
+        };
+        list.appendChild(div);
+    }
+}
+
+function openHospital() {
+    state = 'hospital';
+    document.getElementById('hospitalHp').textContent = Math.floor(player.hp);
+    document.getElementById('hospitalMaxHp').textContent = player.maxHp;
+    document.getElementById('hospitalOverlay').classList.remove('hidden');
+}
+
+function healPlayer(amount, cost) {
+    if (money < cost) { showNotification("⚠️ Недостаточно денег!"); return; }
+    if (player.hp >= player.maxHp) { showNotification("❤️ HP уже полное!"); return; }
+    money -= cost;
+    let healed = Math.min(amount, player.maxHp - player.hp);
+    player.hp = Math.min(player.maxHp, player.hp + amount);
+    createExplosion(player.x, player.y, '#0f0', 20);
+    showNotification(`❤️ +${healed} HP`);
+    updateHUD();
+    document.getElementById('hospitalHp').textContent = Math.floor(player.hp);
+}
+
+function openBusinessMenu(building) {
+    state = 'business';
+    renderBusinessMenu(building);
+    document.getElementById('businessMenu').classList.remove('hidden');
+}
+
+function renderBusinessMenu(focusBuilding = null) {
+    document.getElementById('businessMoneyVal').textContent = money;
+    document.getElementById('businessIncomeVal').textContent = totalIncome;
+    const list = document.getElementById('businessList');
+    list.innerHTML = '';
+    
+    for (let [type, b] of Object.entries(BUSINESS_TYPES)) {
+        const owned = ownedBusinesses.filter(ob => ob.type === type).length;
+        const canAfford = money >= b.price;
+        
+        const div = document.createElement('div');
+        div.className = 'business-item' + (owned > 0 ? ' owned' : '');
+        div.innerHTML = `
+            <h3 style="color:${b.color}">${b.name} (${owned})</h3>
+            <div class="stats">Пассивный доход каждый цикл</div>
+            <div class="income">+$${b.income}/5сек</div>
+            <div class="price ${!canAfford ? 'cant-afford' : ''}">$${b.price}</div>
+        `;
+        div.onclick = () => {
+            if (canAfford) {
+                money -= b.price;
+                ownedBusinesses.push({ type: type, income: b.income });
+                totalIncome += b.income;
+                showNotification(`💼 Куплен ${b.name}! +$${b.income}/5сек`);
+                updateHUD();
+                renderBusinessMenu();
+            } else showNotification("⚠️ Недостаточно денег!");
+        };
+        list.appendChild(div);
+    }
+}
+
+function closeSpecialMenu() {
+    document.getElementById('shopMenu').classList.add('hidden');
+    document.getElementById('hospitalOverlay').classList.add('hidden');
+    document.getElementById('businessMenu').classList.add('hidden');
+    state = 'play';
+}
+
+function enterBuilding(building, type) {
+    state = 'interior';
+    camera.targetZoom = 1.5;
+    let room = {
+        parent: building,
+        x: building.x + 30, y: building.y + 30,
+        w: building.w - 60, h: building.h - 60,
+        type: type, furniture: []
+    };
+    for(let i=0; i<8; i++) {
+        room.furniture.push({
+            x: Math.random() * (room.w - 80),
+            y: Math.random() * (room.h - 80),
+            w: 40 + Math.random()*50, h: 40 + Math.random()*50,
+            color: type === 'prison' ? '#444' : '#333'
+        });
+    }
+    if (type === 'apartment' && Math.random() > 0.5 && smugglers.some(s => s.state === 'wander')) {
+        let hiddenSmuggler = smugglers.find(s => s.state === 'wander');
+        if (hiddenSmuggler) {
+            hiddenSmuggler.x = room.x + room.w/2;
+            hiddenSmuggler.y = room.y + room.h/2;
+            hiddenSmuggler.state = 'hiding';
+            showNotification("⚠️ БАНДИТ СПРЯТАЛСЯ!");
+        }
+    }
+    interiors = [room];
+    player.x = room.x + room.w/2; player.y = room.y + room.h/2;
+    showNotification(type === 'prison' ? "️ ТЮРЬМА" : " ЗДАНИЕ");
+}
+
+function exitBuilding() {
+    if (interiors.length > 0) {
+        let b = interiors[0].parent;
+        player.x = b.door.x; player.y = b.door.y + 30;
+        interiors = [];
+        state = 'play';
+        camera.targetZoom = 1.0;
+        showNotification("🚪 ВЫХОД");
+    }
+}
+
+function shoot() {
+    if (player.shootCd > 0) return;
+    const weapon = WEAPONS[currentWeapon];
+    
+    let sx = player.inCar ? policeCar.x : player.x;
+    let sy = player.inCar ? policeCar.y : player.y;
+    let ang = player.inCar ? policeCar.angle : player.angle;
+    
+    if (!player.inCar) {
+        ang = Math.atan2(mouse.y + camera.y - sy, mouse.x + camera.x - sx);
+    }
+
+    for (let i = 0; i < weapon.bullets; i++) {
+        let spread = (Math.random() - 0.5) * weapon.spread * 2;
+        let bulletAng = ang + spread;
+        bullets.push({
+            x: sx + Math.cos(bulletAng)*20, y: sy + Math.sin(bulletAng)*20,
+            vx: Math.cos(bulletAng)*15, vy: Math.sin(bulletAng)*15,
+            life: 40, owner: 'player', damage: weapon.damage,
+            color: weapon.color
+        });
+    }
+    
+    player.shootCd = weapon.fireRate;
+    
+    for(let i=0; i<5; i++) {
+        particles.push({
+            x: sx + Math.cos(ang)*25, y: sy + Math.sin(ang)*25,
+            vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5,
+            life: 5, color: weapon.color, size: 4
+        });
+    }
+}
+
+function smugglerShoot(s) {
+    if (s.shootCd > 0) return;
+    let ang = Math.atan2(player.y - s.y, player.x - s.x);
+    ang += (Math.random() - 0.5) * 0.3;
+    bullets.push({
+        x: s.x + Math.cos(ang)*20, y: s.y + Math.sin(ang)*20,
+        vx: Math.cos(ang)*10, vy: Math.sin(ang)*10,
+        life: 50, owner: 'smuggler', damage: s.shootDamage, color: '#f80'
+    });
+    s.shootCd = 60 + Math.random() * 40;
+    for(let i=0; i<3; i++) {
+        particles.push({
+            x: s.x + Math.cos(ang)*20, y: s.y + Math.sin(ang)*20,
+            vx: (Math.random()-0.5)*3, vy: (Math.random()-0.5)*3,
+            life: 5, color: '#f80', size: 3
+        });
+    }
+}
+
+function addXP(amount) {
+    xp += amount;
+    floatingTexts.push({ x: player.x, y: player.y - 30, text: `+${amount} XP`, life: 60, color: '#0f0' });
+    while (xp >= xpToNextLevel) {
+        xp -= xpToNextLevel;
+        level++;
+        xpToNextLevel = Math.floor(xpToNextLevel * 1.5);
+        showNotification(`🎉 УРОВЕНЬ ${level}!`);
+        player.speed += 0.2; player.runSpeed += 0.3;
+        policeCar.maxSpeed += 0.5;
+        player.maxHp += 10; player.hp = player.maxHp;
+        createExplosion(player.x, player.y, '#ff0', 30);
+    }
+    updateHUD();
+}
+
+function damagePlayer(amount) {
+    if (player.invuln > 0) return;
+    player.hp -= amount;
+    player.invuln = 30;
+    createExplosion(player.x, player.y, '#f00', 10);
+    if (player.hp <= 0) { player.hp = 0; endGame(); }
+    updateHUD();
+}
+
+function update() {
+    if (state === 'menu' || state === 'end' || state === 'shop' || state === 'hospital' || state === 'business') return;
+
+    camera.zoom += (camera.targetZoom - camera.zoom) * 0.1;
+
+    let dx = 0, dy = 0;
+    if (keys['KeyW'] || keys['ArrowUp']) dy = -1;
+    if (keys['KeyS'] || keys['ArrowDown']) dy = 1;
+    if (keys['KeyA'] || keys['ArrowLeft']) dx = -1;
+    if (keys['KeyD'] || keys['ArrowRight']) dx = 1;
+
+    if (player.inCar) {
+        if (dy === -1) policeCar.speed = Math.min(policeCar.speed + policeCar.acceleration, policeCar.maxSpeed);
+        else if (dy === 1) policeCar.speed = Math.max(policeCar.speed - 0.5, -policeCar.maxSpeed/2);
+        else policeCar.speed *= policeCar.friction;
+
+        if (Math.abs(policeCar.speed) > 0.5) {
+            let turn = policeCar.turnSpeed * (policeCar.speed > 0 ? 1 : -1);
+            if (dx === -1) policeCar.angle -= turn;
+            if (dx === 1) policeCar.angle += turn;
+        }
+
+        let nextX = policeCar.x + Math.cos(policeCar.angle) * policeCar.speed;
+        let nextY = policeCar.y + Math.sin(policeCar.angle) * policeCar.speed;
+
+        if (interiors.length === 0) {
+            let hit = false;
+            for (let b of [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings]) {
+                if (rectCircle(nextX, nextY, 30, b)) hit = true;
+            }
+            if (!hit) { policeCar.x = nextX; policeCar.y = nextY; }
+            else { policeCar.speed *= -0.3; createExplosion(policeCar.x, policeCar.y, '#f80', 5); }
+        }
+        player.x = policeCar.x; player.y = policeCar.y;
+    } else {
+        let spd = (keys['ShiftLeft'] || keys['ShiftRight']) ? player.runSpeed : player.speed;
+        if (dx !== 0 || dy !== 0) {
+            let len = Math.hypot(dx, dy); dx /= len; dy /= len;
+            let nx = player.x + dx * spd, ny = player.y + dy * spd;
+            if (state === 'play') {
+                let blocked = false;
+                for(let b of [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings]) {
+                    if (rectCircle(nx, ny, player.r, b)) blocked = true;
+                }
+                if (!blocked) { player.x = nx; player.y = ny; }
+            } else if (state === 'interior') {
+                let room = interiors[0];
+                if (nx < room.x || nx > room.x + room.w) nx = player.x;
+                if (ny < room.y || ny > room.y + room.h) ny = player.y;
+                for(let f of room.furniture) {
+                    if (rectCircle(nx, ny, player.r, {x: room.x+f.x, y: room.y+f.y, w: f.w, h: f.h})) { nx = player.x; ny = player.y; }
+                }
+                player.x = nx; player.y = ny;
+            }
+            player.angle = Math.atan2(mouse.y + camera.y - player.y, mouse.x + camera.x - player.x);
+        }
+    }
+    
+    if (!player.inCar && state === 'play') {
+        player.x = Math.max(10, Math.min(MAP_SIZE-10, player.x));
+        player.y = Math.max(10, Math.min(MAP_SIZE-10, player.y));
+    }
+
+    if (player.invuln > 0) player.invuln--;
+
+    const weapon = WEAPONS[currentWeapon];
+    if (weapon.auto && (keys['Space'] || keys['Mouse0'])) shoot();
+
+    for (let car of npcCars) {
+        let nextX = car.x + Math.cos(car.angle) * car.speed;
+        let nextY = car.y + Math.sin(car.angle) * car.speed;
+        let onRoad = false;
+        for (let road of roads) {
+            if (nextX > road.x && nextX < road.x + road.w && nextY > road.y && nextY < road.y + road.h) { onRoad = true; break; }
+        }
+        if (onRoad && nextX > 0 && nextX < MAP_SIZE && nextY > 0 && nextY < MAP_SIZE) { car.x = nextX; car.y = nextY; }
+        else car.angle += Math.PI;
+    }
+
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.x += b.vx; b.y += b.vy; b.life--;
+        let hit = false;
+        if (state === 'play') {
+            for(let build of [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings]) {
+                if (rectCircle(b.x, b.y, 2, build)) hit = true;
+            }
+        } else if (state === 'interior') {
+             let room = interiors[0];
+             if (b.x < room.x || b.x > room.x+room.w || b.y < room.y || b.y > room.y+room.h) hit = true;
+             for(let f of room.furniture) {
+                 if (rectCircle(b.x, b.y, 2, {x: room.x+f.x, y: room.y+f.y, w: f.w, h: f.h})) hit = true;
+             }
+        }
+        if (hit || b.life <= 0) { createExplosion(b.x, b.y, b.color || '#ff0', 3); bullets.splice(i, 1); continue; }
+
+        if (b.owner === 'player') {
+            for (let s of smugglers) {
+                if (s.state !== 'arrested' && Math.hypot(b.x - s.x, b.y - s.y) < s.r) {
+                    s.hp -= b.damage; s.state = 'flee';
+                    createExplosion(s.x, s.y, '#f00', 8);
+                    bullets.splice(i, 1);
+                    if (s.hp <= 0) {
+                        addXP(s.xpValue);
+                        money += s.moneyValue;
+                        showNotification(` УБИТ! +$${s.moneyValue} +${s.xpValue}XP`);
+                        createExplosion(s.x, s.y, '#f00', 25);
+                        floatingTexts.push({ x: s.x, y: s.y - 20, text: `+$${s.moneyValue}`, life: 60, color: '#0f0' });
+                        smugglers = smugglers.filter(sm => sm !== s);
+                        totalSmugglers = smugglers.length;
+                        if (totalSmugglers === 0) endGame();
+                    }
+                    updateHUD();
+                    break;
+                }
+            }
+        }
+        if (b.owner === 'smuggler') {
+            let px = player.inCar ? policeCar.x : player.x;
+            let py = player.inCar ? policeCar.y : player.y;
+            let pr = player.inCar ? 35 : player.r;
+            if (Math.hypot(b.x - px, b.y - py) < pr) {
+                damagePlayer(b.damage);
+                bullets.splice(i, 1);
+            }
+        }
+    }
+
+    updateAI(smugglers, true);
+    updateAI(civilians, false);
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        let ft = floatingTexts[i]; ft.y -= 1; ft.life--;
+        if (ft.life <= 0) floatingTexts.splice(i, 1);
+    }
+    if (player.shootCd > 0) player.shootCd--;
+
+    businessIncomeTimer++;
+    if (businessIncomeTimer >= 300) {
+        businessIncomeTimer = 0;
+        if (totalIncome > 0) {
+            money += totalIncome;
+            showNotification(`💼 Доход от бизнесов: +$${totalIncome}`);
+            updateHUD();
+        }
+    }
+
+    let tx = player.x - W / 2 / camera.zoom;
+    let ty = player.y - H / 2 / camera.zoom;
+    camera.x += (tx - camera.x) * 0.1;
+    camera.y += (ty - camera.y) * 0.1;
+    
+    let district = getCurrentDistrict();
+    document.getElementById('districtName').textContent = district.name;
+    document.getElementById('districtName').style.color = district.color;
+}
+
+function updateAI(list, isHostile) {
+    for (let e of list) {
+        if (isHostile && e.state === 'arrested') continue;
+        let distToPlayer = Math.hypot(e.x - player.x, e.y - player.y);
+        if (isHostile) {
+            if (e.state === 'flee' || distToPlayer < 200 + e.danger * 20) {
+                e.state = 'flee';
+                let ang = Math.atan2(e.y - player.y, e.x - player.x);
+                moveEntity(e, ang, 3.0);
+                if (distToPlayer < e.shootRange && state === 'play') {
+                    if (e.shootCd > 0) e.shootCd--;
+                    else smugglerShoot(e);
+                }
+            } else if (e.state !== 'hiding') wander(e, 0.5);
+        } else {
+            if (e.state === 'panic') {
+                e.timer--; if(e.timer <= 0) e.state = 'wander';
+                let ang = Math.atan2(e.y - player.y, e.x - player.x);
+                moveEntity(e, ang, 4.0);
+            } else wander(e, 1.0);
+        }
+        e.x = Math.max(10, Math.min(MAP_SIZE-10, e.x));
+        e.y = Math.max(10, Math.min(MAP_SIZE-10, e.y));
+    }
+}
+
+function wander(e, speedMult) {
+    e.timer--;
+    if (e.timer <= 0) { e.angle = Math.random() * Math.PI * 2; e.timer = 60 + Math.random() * 100; }
+    moveEntity(e, e.angle, 1.5 * speedMult);
+}
+
+function moveEntity(e, angle, speed) {
+    let nx = e.x + Math.cos(angle) * speed, ny = e.y + Math.sin(angle) * speed;
+    let blocked = false;
+    for(let b of [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings]) {
+        if (rectCircle(nx, ny, e.r, b)) blocked = true;
+    }
+    if (!blocked) { e.x = nx; e.y = ny; } else e.angle += Math.PI;
+}
+
+function rectCircle(cx, cy, cr, rect) {
+    let testX = cx, testY = cy;
+    if (cx < rect.x) testX = rect.x; else if (cx > rect.x + rect.w) testX = rect.x + rect.w;
+    if (cy < rect.y) testY = rect.y; else if (cy > rect.y + rect.h) testY = rect.y + rect.h;
+    let distX = cx - testX, distY = cy - testY;
+    return (distX*distX + distY*distY) <= (cr*cr);
+}
+
+function createExplosion(x, y, color, count) {
+    for(let i=0; i<count; i++) {
+        particles.push({ x: x, y: y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, life: 20 + Math.random()*10, color: color, size: 2+Math.random()*3 });
+    }
+}
+
+function showNotification(text) {
+    let el = document.getElementById('notification');
+    el.innerText = text; el.style.opacity = 1;
+    setTimeout(() => el.style.opacity = 0, 2000);
+}
+
+function updateHUD() {
+    document.getElementById('scoreVal').textContent = score;
+    document.getElementById('totalVal').textContent = totalSmugglers;
+    document.getElementById('moneyVal').textContent = money;
+    document.getElementById('incomeVal').textContent = totalIncome;
+    document.getElementById('levelVal').textContent = level;
+    document.getElementById('xpVal').textContent = xp;
+    document.getElementById('xpNextVal').textContent = xpToNextLevel;
+    document.getElementById('hpVal').textContent = Math.floor(player.hp);
+    document.getElementById('weaponVal').textContent = WEAPONS[currentWeapon].name;
+    let hpPercent = (player.hp / player.maxHp) * 100;
+    document.getElementById('hpFill').style.width = hpPercent + '%';
+    let xpPercent = (xp / xpToNextLevel) * 100;
+    document.getElementById('xpFill').style.width = xpPercent + '%';
+}
+
+function endGame() {
+    state = 'end';
+    let timeSec = Math.floor((Date.now() - startTime)/1000);
+    document.getElementById('ui').classList.add('hidden');
+    document.getElementById('endScreen').classList.remove('hidden');
+    document.getElementById('finalStats').innerHTML = 
+        `АРЕСТОВАНО: ${score}<br>УБИТО: ${24 - totalSmugglers - score}<br>` +
+        `УРОВЕНЬ: ${level}<br>ДЕНЕГ: $${money}<br>БИЗНЕСОВ: ${ownedBusinesses.length}<br>ВРЕМЯ: ${timeSec} сек.`;
+}
+
+function render() {
+    let grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#0a0020');
+    grad.addColorStop(0.5, '#1a0040');
+    grad.addColorStop(1, '#050510');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.scale(camera.zoom, camera.zoom);
+    ctx.translate(-camera.x, -camera.y);
+
+    for (let district of DISTRICTS) {
+        ctx.fillStyle = district.color + '08';
+        ctx.fillRect(district.x, district.y, district.w, district.h);
+        ctx.strokeStyle = district.color + '40';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(district.x, district.y, district.w, district.h);
+    }
+
+    ctx.strokeStyle = '#1a1a3a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let x=0; x<=MAP_SIZE; x+=200) { ctx.moveTo(x,0); ctx.lineTo(x,MAP_SIZE); }
+    for(let y=0; y<=MAP_SIZE; y+=200) { ctx.moveTo(0,y); ctx.lineTo(MAP_SIZE,y); }
+    ctx.stroke();
+
+    for (let road of roads) {
+        ctx.fillStyle = '#2a2a3e';
+        if (road.vertical) {
+            ctx.fillRect(road.x - 15, road.y, 15, road.h);
+            ctx.fillRect(road.x + road.w, road.y, 15, road.h);
+        } else {
+            ctx.fillRect(road.x, road.y - 15, road.w, 15);
+            ctx.fillRect(road.x, road.y + road.h, road.w, 15);
+        }
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(road.x, road.y, road.w, road.h);
+        ctx.strokeStyle = '#ff0';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([30, 20]);
+        ctx.beginPath();
+        if (road.vertical) { ctx.moveTo(road.x + road.w/2, road.y); ctx.lineTo(road.x + road.w/2, road.y + road.h); }
+        else { ctx.moveTo(road.x, road.y + road.h/2); ctx.lineTo(road.x + road.w, road.y + road.h/2); }
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    let allBuildings = [...buildings, ...prisons, ...shops, ...hospitals, ...businessBuildings];
+    allBuildings.sort((a, b) => a.y - b.y);
+
+    for (let b of allBuildings) drawBuilding3D(b);
+
+    if (state === 'interior' && interiors.length > 0) {
+        let room = interiors[0];
+        ctx.fillStyle = room.type === 'prison' ? '#200' : '#222';
+        ctx.fillRect(room.x, room.y, room.w, room.h);
+        ctx.strokeStyle = '#555'; ctx.lineWidth = 10;
+        ctx.strokeRect(room.x, room.y, room.w, room.h);
+        for(let f of room.furniture) {
+            ctx.fillStyle = f.color;
+            ctx.fillRect(room.x + f.x, room.y + f.y, f.w, f.h);
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+            ctx.strokeRect(room.x + f.x, room.y + f.y, f.w, f.h);
+        }
+        ctx.fillStyle = '#fff'; ctx.font = '20px monospace'; ctx.textAlign = 'center';
+        ctx.fillText("[F] ВЫЙТИ", room.x + room.w/2, room.y + room.h - 20);
+    }
+
+    for (let car of npcCars) drawCar3D(car.x, car.y, car.angle, car.w, car.h, car.color, false);
+
+    drawEntityList(civilians, '#888');
+    drawEntityList(smugglers, '#f0f');
+
+    if (player.inCar) drawPoliceCar3D();
+    else drawPlayer3D();
+
+    for(let b of bullets) {
+        ctx.fillStyle = b.color || '#ff0';
+        ctx.shadowColor = b.color || '#ff0';
+        ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    for(let p of particles) {
+        ctx.globalAlpha = p.life / 30;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+
+    for(let ft of floatingTexts) {
+        ctx.globalAlpha = ft.life / 60;
+        ctx.fillStyle = ft.color;
+        ctx.font = 'bold 20px Courier New';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#000'; ctx.shadowBlur = 5;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+    drawMinimap();
+}
+
+function drawBuilding3D(b) {
+    const h = b.height || 50;
+    const depth = h * 0.6;
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y + b.h);
+    ctx.lineTo(b.x + b.w, b.y + b.h);
+    ctx.lineTo(b.x + b.w, b.y + b.h - depth);
+    ctx.lineTo(b.x, b.y + b.h - depth);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.moveTo(b.x + b.w, b.y);
+    ctx.lineTo(b.x + b.w, b.y + b.h);
+    ctx.lineTo(b.x + b.w, b.y + b.h - depth);
+    ctx.lineTo(b.x + b.w, b.y - depth);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x, b.y - depth, b.w, b.h);
+    
+    ctx.strokeStyle = b.neon;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = b.neon;
+    ctx.shadowBlur = 15;
+    ctx.strokeRect(b.x, b.y - depth, b.w, b.h);
+    ctx.shadowBlur = 0;
+    
+    ctx.fillStyle = 'rgba(255,255,100,0.4)';
+    for (let wx = b.x + 10; wx < b.x + b.w - 10; wx += 18) {
+        for (let wy = b.y + b.h - depth + 5; wy < b.y + b.h - 5; wy += 15) {
+            if (Math.random() > 0.3) ctx.fillRect(wx, wy, 8, 8);
+        }
+    }
+    
+    ctx.fillStyle = b.neon;
+    ctx.font = 'bold 12px Courier New';
+    ctx.textAlign = 'center';
+    let label = b.type.toUpperCase();
+    if (b.type.startsWith('business_')) {
+        let bt = b.type.replace('business_', '');
+        label = BUSINESS_TYPES[bt].name + (b.owned ? ' ★' : '');
+    }
+    if (b.type === 'shop') label = '🛒 SHOP';
+    if (b.type === 'hospital') label = ' HOSPITAL';
+    if (b.type === 'prison') label = '⛓ PRISON';
+    ctx.fillText(label, b.x + b.w/2, b.y - depth - 10);
+    
+    ctx.fillStyle = '#0f0';
+    ctx.shadowColor = '#0f0';
+    ctx.shadowBlur = 10;
+    ctx.fillRect(b.door.x - b.door.w/2, b.y + b.h - 15, b.door.w, 10);
+    ctx.shadowBlur = 0;
+}
+
+function drawCar3D(x, y, angle, w, h, color, isPolice) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(-w/2 + 5, -h/2 + 5, w, h);
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(-w/2, -h/2 + 5, w, 8);
+    
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+    ctx.fillRect(-w/2, -h/2, w, h);
+    ctx.shadowBlur = 0;
+    
+    ctx.fillStyle = '#0ff';
+    ctx.fillRect(w/2 - 15, -h/2 + 3, 10, h - 6);
+    
+    if (isPolice) {
+        ctx.fillStyle = (Date.now() % 500 < 250) ? '#f00' : '#00f';
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = 15;
+        ctx.fillRect(-10, -8, 20, 16);
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#0ff'; ctx.lineWidth = 2;
+        ctx.strokeRect(-w/2, -h/2, w, h);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Courier New'; ctx.textAlign = 'center';
+        ctx.fillText("POLICE", 0, 4);
+    }
+    
+    ctx.restore();
+}
+
+function drawPoliceCar3D() {
+    drawCar3D(policeCar.x, policeCar.y, policeCar.angle, policeCar.w, policeCar.h, '#112', true);
+}
+
+function drawEntityList(list, defaultColor) {
+    for(let e of list) {
+        if (e.state === 'arrested') continue;
+        ctx.save();
+        ctx.translate(e.x, e.y);
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.beginPath(); ctx.ellipse(3, e.r, e.r, e.r/2, 0, 0, Math.PI*2); ctx.fill();
+        
+        let col = defaultColor;
+        if (list === smugglers) {
+            if (e.state === 'flee') col = '#f00';
+            else if (e.state === 'hiding') col = '#808';
+            else col = '#f0f';
+        } else { if (e.state === 'panic') col = '#fff'; }
+
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath(); ctx.arc(2, 2, e.r, 0, Math.PI*2); ctx.fill();
+        
+        ctx.fillStyle = col;
+        ctx.shadowColor = col;
+        ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        if (list === smugglers && e.hp < e.maxHp) {
+            ctx.fillStyle = '#f00'; ctx.fillRect(-15, -25, 30, 4);
+            ctx.fillStyle = '#0f0'; ctx.fillRect(-15, -25, 30 * (e.hp / e.maxHp), 4);
+        }
+        ctx.restore();
+    }
+}
+
+function drawPlayer3D() {
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(3, player.r, player.r, player.r/2, 0, 0, Math.PI*2); ctx.fill();
+    
+    ctx.rotate(player.angle);
+    
+    if (player.invuln > 0 && Math.floor(player.invuln / 5) % 2 === 0) ctx.globalAlpha = 0.5;
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.arc(2, 2, player.r, 0, Math.PI*2); ctx.fill();
+    
+    // Тело полицейского - крупнее и детальнее
+    ctx.fillStyle = '#0af';
+    ctx.shadowColor = '#0af';
+    ctx.shadowBlur = 15;
+    ctx.beginPath(); ctx.arc(0, 0, player.r, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    
+    // Оружие
+    ctx.fillStyle = '#222';
+    ctx.fillRect(8, -6, 20, 12);
+    ctx.fillStyle = WEAPONS[currentWeapon].color;
+    ctx.fillRect(20, -4, 10, 8);
+    
+    // Значок полицейского
+    ctx.fillStyle = '#ff0';
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI*2); ctx.fill();
+    
+    // Глаза (направление)
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(8, -3, 4, 3);
+    ctx.fillRect(8, 1, 4, 3);
+    
+    ctx.globalAlpha = 1;
+    ctx.restore();
+}
+
+function drawMinimap() {
+    let size = 200, margin = 20;
+    let x = W - size - margin, y = margin;
+    let scale = size / MAP_SIZE;
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(x, y, size, size);
+    ctx.strokeStyle = '#0ff'; ctx.strokeRect(x, y, size, size);
+    
+    for (let d of DISTRICTS) {
+        ctx.fillStyle = d.color + '30';
+        ctx.fillRect(x + d.x*scale, y + d.y*scale, d.w*scale, d.h*scale);
+    }
+    
+    ctx.fillStyle = '#f00';
+    for(let p of prisons) ctx.fillRect(x + p.x*scale, y + p.y*scale, p.w*scale, p.h*scale);
+    ctx.fillStyle = '#0f0';
+    for(let s of shops) ctx.fillRect(x + s.x*scale, y + s.y*scale, s.w*scale, s.h*scale);
+    ctx.fillStyle = '#fff';
+    for(let h of hospitals) ctx.fillRect(x + h.x*scale, y + h.y*scale, h.w*scale, h.h*scale);
+    ctx.fillStyle = '#f0f';
+    for(let b of businessBuildings) ctx.fillRect(x + b.x*scale, y + b.y*scale, b.w*scale, b.h*scale);
+    ctx.fillStyle = '#333';
+    for(let b of buildings) ctx.fillRect(x + b.x*scale, y + b.y*scale, b.w*scale, b.h*scale);
+    
+    function drawDot(ent, color) { ctx.fillStyle = color; ctx.fillRect(x + ent.x*scale - 2, y + ent.y*scale - 2, 4, 4); }
+    for(let s of smugglers) if(s.state !== 'arrested') drawDot(s, '#f00');
+    drawDot(player, '#0f0');
+    if (player.inCar) { ctx.fillStyle = '#0ff'; ctx.fillRect(x + policeCar.x*scale - 3, y + policeCar.y*scale - 3, 6, 6); }
+}
+
+function loop() { update(); render(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>
